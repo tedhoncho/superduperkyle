@@ -1,5 +1,8 @@
 {
   "$schema": "https://schema.railpack.com",
+  "packages": {
+    "node": "24.18.0"
+  },
   "deploy": {
     "aptPackages": ["...", "ffmpeg"]
   }
