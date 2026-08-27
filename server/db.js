@@ -4,10 +4,16 @@
 // multiple server instances at once, swap this file for a Postgres client —
 // the rest of the app only calls the functions exported below.
 
+const fs = require('fs');
 const path = require('path');
 const Database = require('better-sqlite3');
 
 const DB_PATH = path.join(__dirname, '..', 'data', 'db', 'store.sqlite3');
+// better-sqlite3 won't create a missing parent folder itself — it just
+// throws. Locally and on the old ephemeral disk this folder happened to
+// already exist, but a fresh Railway Volume mounts empty, so this has to be
+// created explicitly (same pattern uploads.js already uses for audio/art).
+fs.mkdirSync(path.dirname(DB_PATH), { recursive: true });
 const db = new Database(DB_PATH);
 db.pragma('journal_mode = WAL');
 db.pragma('foreign_keys = ON');
