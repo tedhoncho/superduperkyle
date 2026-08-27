@@ -1,0 +1,4 @@
+project_id,title,type,release_year,cover_art_file,pricing_mode,fixed_price_cents,pwyw_min_per_track_cents,suggested_amounts_cents,description
+sdk-nightshift,Night Shift,album,2026,nightshift.jpg,pwyw,,150,500|1000|1500|2500,"Full project - pay what you want, $1.50/released track minimum"
+sdk-goodvibes,Good Vibes Only,single,2026,goodvibesonly.jpg,fixed,299,,,"Single - fixed price"
+sdk-freestyle-vol1,Freestyle Vol. 1,single,2026,freestylevol1.jpg,pwyw,,200,200|500|1000,"Single - pay what you want, $2 minimum"

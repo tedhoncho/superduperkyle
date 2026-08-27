@@ -1,0 +1,134 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Kyle Store — Upload Dashboard</title>
+<link rel="stylesheet" href="/styles.css" />
+<link rel="stylesheet" href="/admin/admin.css" />
+</head>
+<body>
+
+  <!-- ===================== LOGIN ===================== -->
+  <div id="view-login" class="admin-login-wrap">
+    <form id="login-form" class="admin-login-card">
+      <h1>Super Duper Kyle</h1>
+      <p class="admin-login-sub">Upload dashboard</p>
+      <input type="password" id="login-password" placeholder="Password" autofocus />
+      <button type="submit">Log In</button>
+      <p id="login-error" class="admin-error hidden"></p>
+    </form>
+  </div>
+
+  <!-- ===================== DASHBOARD (project list) ===================== -->
+  <div id="view-dashboard" class="admin-shell hidden">
+    <header class="admin-header">
+      <h1>Your Music</h1>
+      <div class="admin-header-actions">
+        <button id="btn-new-project" class="admin-btn-primary">+ New Song or Album</button>
+        <button id="btn-logout" class="admin-btn-ghost">Log Out</button>
+      </div>
+    </header>
+    <div id="project-list" class="admin-project-list">
+      <p class="admin-loading">Loading…</p>
+    </div>
+  </div>
+
+  <!-- ===================== PROJECT EDITOR ===================== -->
+  <div id="view-editor" class="admin-shell hidden">
+    <header class="admin-header">
+      <button id="btn-back" class="admin-btn-ghost">&larr; Back to Your Music</button>
+    </header>
+
+    <div class="admin-editor-grid">
+      <section class="admin-panel">
+        <h2 id="editor-title">New Song or Album</h2>
+
+        <label class="admin-field">
+          Title
+          <input type="text" id="field-title" placeholder="e.g. Night Shift" />
+        </label>
+
+        <label class="admin-field">
+          What is this?
+          <select id="field-type">
+            <option value="single">A single song</option>
+            <option value="ep">An EP (a few songs)</option>
+            <option value="album">A full album</option>
+          </select>
+        </label>
+
+        <label class="admin-field">
+          Release year (optional)
+          <input type="text" id="field-year" placeholder="2026" />
+        </label>
+
+        <fieldset class="admin-field admin-pricing-choice">
+          <legend>Pricing</legend>
+          <label class="admin-radio">
+            <input type="radio" name="pricingMode" value="fixed" checked />
+            Set one price
+          </label>
+          <label class="admin-radio">
+            <input type="radio" name="pricingMode" value="pwyw" />
+            Let fans pay what they want
+          </label>
+        </fieldset>
+
+        <label class="admin-field">
+          <span id="price-label">Price ($)</span>
+          <input type="number" id="field-price" min="0" step="0.01" placeholder="2.99" />
+        </label>
+        <p id="pwyw-hint" class="admin-hint hidden">This is the minimum per song. Fans will see quick-pick amounts above it automatically — you don't need to set those yourself.</p>
+
+        <label class="admin-field">
+          Description (optional, just for you — fans don't see this)
+          <textarea id="field-description" rows="2"></textarea>
+        </label>
+
+        <div class="admin-field">
+          <span>Cover Art</span>
+          <div id="cover-dropzone" class="admin-dropzone admin-dropzone-square">
+            <img id="cover-preview" class="hidden" />
+            <p id="cover-dropzone-text">Drop an image here, or tap to choose one</p>
+          </div>
+          <input type="file" id="cover-file-input" accept="image/*" class="hidden" />
+        </div>
+
+        <p id="editor-error" class="admin-error hidden"></p>
+        <button id="btn-save-project" class="admin-btn-primary admin-btn-full">Save</button>
+      </section>
+
+      <section id="tracks-panel" class="admin-panel hidden">
+        <h2>Songs</h2>
+        <div id="track-list" class="admin-track-list"></div>
+
+        <div id="track-dropzone" class="admin-dropzone">
+          <p>Drop a song file here, or tap to choose one</p>
+          <p class="admin-hint">MP3, WAV, FLAC, M4A all work. A preview clip is made automatically.</p>
+        </div>
+        <input type="file" id="track-file-input" accept="audio/*,.flac,.m4a,.wma" class="hidden" />
+
+        <div id="pending-track" class="admin-pending-track hidden">
+          <p class="admin-pending-filename"></p>
+          <label class="admin-field">
+            Song title
+            <input type="text" id="pending-track-title" />
+          </label>
+          <label class="admin-checkbox">
+            <input type="checkbox" id="pending-track-released" checked />
+            Available to buy right now (uncheck to list it as "coming soon")
+          </label>
+          <div class="admin-pending-actions">
+            <button id="btn-confirm-track" class="admin-btn-primary">Add Song</button>
+            <button id="btn-cancel-track" class="admin-btn-ghost">Cancel</button>
+          </div>
+          <p id="track-upload-status" class="admin-hint"></p>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <script src="/admin/admin.js"></script>
+</body>
+</html>

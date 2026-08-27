@@ -1,0 +1,7 @@
+track_id,project_id,track_number,title,audio_file,preview_audio_file,duration_seconds,released
+sdk-nightshift-01,sdk-nightshift,1,Night Shift (Intro),nightshift-01.mp3,nightshift-01-preview.mp3,142,yes
+sdk-nightshift-02,sdk-nightshift,2,No Sleep,nightshift-02.mp3,nightshift-02-preview.mp3,201,yes
+sdk-nightshift-03,sdk-nightshift,3,City Lights,nightshift-03.mp3,nightshift-03-preview.mp3,187,yes
+sdk-nightshift-04,sdk-nightshift,4,Come Back Down (Unreleased),nightshift-04.mp3,,0,no
+sdk-goodvibes-01,sdk-goodvibes,1,Good Vibes Only,goodvibesonly.mp3,goodvibesonly-preview.mp3,178,yes
+sdk-freestyle-vol1-01,sdk-freestyle-vol1,1,Freestyle Vol. 1,freestylevol1.mp3,freestylevol1-preview.mp3,95,yes

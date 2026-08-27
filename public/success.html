@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Thanks for your purchase — Super Duper Kyle</title>
+<link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <header class="site-header">
+    <h1>Super Duper Kyle</h1>
+  </header>
+
+  <main class="success-page">
+    <div id="success-content">
+      <p class="loading">Confirming your payment…</p>
+    </div>
+    <a href="/" class="back-link">&larr; Back to the store</a>
+  </main>
+
+  <script>
+    const params = new URLSearchParams(window.location.search);
+    const sessionId = params.get('session_id');
+    const content = document.getElementById('success-content');
+
+    async function run() {
+      if (!sessionId) {
+        content.innerHTML = '<p>No order found.</p>';
+        return;
+      }
+      try {
+        const res = await fetch(`/api/session/${sessionId}`);
+        const data = await res.json();
+        if (!data.paid) {
+          content.innerHTML = '<p>We could not confirm this payment yet. If you were just charged, check your email in a minute — your links are on their way.</p>';
+          return;
+        }
+        if (data.error) {
+          content.innerHTML = `<p>Payment confirmed, but something went wrong preparing your download (${data.error}). Check your email, or contact support.</p>`;
+          return;
+        }
+        const links = data.downloads
+          .map((d) => `<li><a href="${d.url}">Download: ${d.trackTitle}</a></li>`)
+          .join('');
+        content.innerHTML = `
+          <h2>You're all set 🎧</h2>
+          <p>Thanks for supporting <strong>${data.projectTitle}</strong>. Your download links are ready below, and we've also emailed them to <strong>${data.email}</strong>.</p>
+          <ul class="download-list">${links}</ul>
+        `;
+      } catch (err) {
+        content.innerHTML = '<p>Something went wrong confirming your order. Check your email for your download links, or contact support.</p>';
+      }
+    }
+    run();
+  </script>
+</body>
+</html>
