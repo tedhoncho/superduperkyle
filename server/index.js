@@ -19,6 +19,16 @@ const PORT = process.env.PORT || 4242;
 const BASE_URL = process.env.BASE_URL || `http://localhost:${PORT}`;
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '');
 
+// Railway (and most hosts) terminate HTTPS at their edge, then forward
+// requests to this app over plain HTTP internally. Without this, Express
+// has no way to know the original connection was secure, which breaks our
+// session cookie: with NODE_ENV=production the cookie is marked "secure,"
+// and express-session refuses to ever send a "secure" cookie over what it
+// thinks is an insecure connection — so admin login would silently never
+// stick. "trust proxy" tells Express to read the X-Forwarded-Proto header
+// the proxy sets, so it correctly sees these requests as HTTPS.
+app.set('trust proxy', 1);
+
 const allowedOrigins = (process.env.ALLOWED_ORIGINS || '').split(',').map((s) => s.trim()).filter(Boolean);
 app.use(
   cors({
