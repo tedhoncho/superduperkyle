@@ -82,6 +82,11 @@ async function loadProjects() {
   const listEl = document.getElementById('project-list');
   listEl.innerHTML = '<p class="admin-loading">Loading…</p>';
   const { projects } = await api('GET', '/api/admin/projects');
+  renderProjectList(projects);
+}
+
+function renderProjectList(projects) {
+  const listEl = document.getElementById('project-list');
 
   if (!projects.length) {
     listEl.innerHTML = '<p class="admin-empty">Nothing uploaded yet — hit "New Song or Album" to add your first one.</p>';
@@ -89,7 +94,7 @@ async function loadProjects() {
   }
 
   listEl.innerHTML = '';
-  for (const project of projects) {
+  projects.forEach((project, index) => {
     const releasedCount = project.tracks.filter((t) => t.released).length;
     const priceLabel =
       project.pricingMode === 'fixed'
@@ -99,9 +104,13 @@ async function loadProjects() {
     const row = document.createElement('div');
     row.className = 'admin-project-row';
     row.innerHTML = `
+      <div class="admin-track-order" title="Reorder — the top release is featured on the storefront">
+        <button class="btn-up" ${index === 0 ? 'disabled' : ''}>&and;</button>
+        <button class="btn-down" ${index === projects.length - 1 ? 'disabled' : ''}>&or;</button>
+      </div>
       ${project.coverArtFile ? `<img class="admin-project-thumb" src="/art/${project.coverArtFile}" />` : '<div class="admin-project-thumb"></div>'}
       <div class="admin-project-info">
-        <h3>${project.title}</h3>
+        <h3>${project.title}${index === 0 ? ' <span class="admin-featured-badge">Featured</span>' : ''}</h3>
         <p>${project.tracks.length} song${project.tracks.length === 1 ? '' : 's'} (${releasedCount} live) · ${priceLabel}</p>
       </div>
       <div class="admin-project-row-actions">
@@ -109,10 +118,17 @@ async function loadProjects() {
         <button class="admin-btn-ghost btn-delete">Delete</button>
       </div>
     `;
+    row.querySelector('.btn-up').addEventListener('click', () => reorderProject(project.id, 'up'));
+    row.querySelector('.btn-down').addEventListener('click', () => reorderProject(project.id, 'down'));
     row.querySelector('.btn-edit').addEventListener('click', () => openEditor(project));
     row.querySelector('.btn-delete').addEventListener('click', () => deleteProject(project));
     listEl.appendChild(row);
-  }
+  });
+}
+
+async function reorderProject(projectId, direction) {
+  const { projects } = await api('POST', `/api/admin/projects/${projectId}/reorder`, { direction });
+  renderProjectList(projects);
 }
 
 async function deleteProject(project) {

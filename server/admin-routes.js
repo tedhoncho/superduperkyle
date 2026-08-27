@@ -131,6 +131,22 @@ router.delete('/projects/:id', async (req, res) => {
   res.json({ ok: true });
 });
 
+router.post('/projects/:id/reorder', (req, res) => {
+  const project = catalog.getProject(req.params.id);
+  if (!project) return res.status(404).json({ error: 'Project not found.' });
+
+  const siblings = catalog.listAllProjects();
+  const index = siblings.findIndex((p) => p.id === project.id);
+  const targetIndex = req.body.direction === 'up' ? index - 1 : index + 1;
+
+  if (targetIndex < 0 || targetIndex >= siblings.length) {
+    return res.json({ projects: siblings }); // already at the end, no-op
+  }
+
+  db.swapProjectOrder(project.id, siblings[targetIndex].id);
+  res.json({ projects: catalog.listAllProjects() });
+});
+
 router.post('/projects/:id/cover', (req, res) => {
   imageUpload.single('cover')(req, res, (err) => {
     if (err) return res.status(400).json({ error: err.message });
