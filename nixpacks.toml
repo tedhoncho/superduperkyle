@@ -1,8 +1,0 @@
-# Railway builds this app with Nixpacks by default. Nixpacks' Node preset
-# does NOT include ffmpeg/ffprobe, which the admin dashboard needs for song
-# duration detection and auto-generated preview clips — this file adds it.
-# (If deploying to Render instead, see the README: Render's standard Node
-# runtime needs a Dockerfile to add system packages like this.)
-
-[phases.setup]
-nixPkgs = ["ffmpeg"]

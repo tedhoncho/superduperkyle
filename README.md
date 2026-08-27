@@ -110,7 +110,7 @@ needing Stripe at all, useful for testing download links/email in isolation.
    `https://<your-deployed-domain>/api/webhook` — that gives you the live
    `STRIPE_WEBHOOK_SECRET`.
 2. **Deploy the app somewhere that keeps a persistent process** — Railway is the
-   easier fit given the ffmpeg requirement below (the included `nixpacks.toml`
+   easier fit given the ffmpeg requirement below (the included `railpack.json`
    handles it with zero extra setup — just deploy). Render works too but its
    standard Node runtime doesn't include ffmpeg, so it needs a Dockerfile instead
    of the plain buildpack — say the word if you end up on Render and I'll write one.
@@ -118,9 +118,12 @@ needing Stripe at all, useful for testing download links/email in isolation.
    keeps a local SQLite file and disk-based audio files.
 3. **ffmpeg has to exist on whatever server this runs on** — the admin dashboard's
    duration detection and auto-preview-clip generation both shell out to it. Railway:
-   handled automatically by `nixpacks.toml`. Anywhere else: confirm `ffmpeg`/`ffprobe`
-   are installed, or the upload flow will still work but preview clips just won't
-   generate (a warning shows in the admin UI when that happens — it won't fail silently).
+   handled automatically by `railpack.json` (Railway's current default builder,
+   Railpack, reads this file — it replaced the older Nixpacks builder, whose
+   `nixpacks.toml` config this project used to ship with and is no longer read).
+   Anywhere else: confirm `ffmpeg`/`ffprobe` are installed, or the upload flow will
+   still work but preview clips just won't generate (a warning shows in the admin
+   UI when that happens — it won't fail silently).
 4. **Move audio files off local disk before real songs pile up.** Railway/Render's
    disk is not guaranteed to survive every redeploy, and now that uploads happen
    live through the admin UI (not committed to git), losing that disk means losing
