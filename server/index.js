@@ -195,6 +195,15 @@ app.get('/api/session/:sessionId', async (req, res) => {
   }
 });
 
+// Fans should see "Remember.mp3" in their Downloads folder, not the internal
+// storage filename like "remember-a1b2c3.mp3" (that random suffix only exists
+// so uploads never collide on disk — it was never meant to be user-facing).
+function friendlyDownloadName(title, storageFilename) {
+  const ext = path.extname(storageFilename) || '.mp3';
+  const cleanTitle = (title || 'track').replace(/[\\/:*?"<>|]/g, '').trim() || 'track';
+  return `${cleanTitle}${ext}`;
+}
+
 // --- Secure download delivery ---
 app.get('/api/download/:token', async (req, res) => {
   const check = downloads.validateToken(req.params.token);
@@ -222,7 +231,7 @@ app.get('/api/download/:token', async (req, res) => {
   if (result.type === 'redirect') {
     return res.redirect(result.url);
   }
-  return res.download(result.filePath, track.audioFile);
+  return res.download(result.filePath, friendlyDownloadName(track.title, track.audioFile));
 });
 
 app.get('/health', (req, res) => res.json({ ok: true }));
