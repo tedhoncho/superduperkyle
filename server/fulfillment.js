@@ -7,7 +7,7 @@
 const catalog = require('./catalog');
 const db = require('./db');
 const downloads = require('./downloads');
-const { sendDownloadEmail } = require('./email');
+const { sendDownloadEmail, sendSaleNotification } = require('./email');
 
 async function fulfillOrder(orderId) {
   const order = db.getOrder(orderId);
@@ -44,6 +44,21 @@ async function fulfillOrder(orderId) {
     // still get their files from the success page, and the webhook can be
     // safely retried by Stripe (tokens already exist, so this is idempotent).
     console.error('[fulfillment] email send failed:', err.message);
+  }
+
+  try {
+    await sendSaleNotification({
+      artistName: process.env.ARTIST_NAME || 'The Artist',
+      projectTitle: project.title,
+      amountCents: order.amount_cents,
+      currency: order.currency,
+      customerEmail: order.email,
+      orderId: order.id,
+    });
+  } catch (err) {
+    // Same reasoning as above — a notification hiccup shouldn't block a
+    // fan's purchase from completing.
+    console.error('[fulfillment] sale notification failed:', err.message);
   }
 
   db.markOrderFulfilled(orderId);
