@@ -110,6 +110,35 @@ function getOrder(id) {
   return db.prepare(`SELECT * FROM orders WHERE id = ?`).get(id) || null;
 }
 
+// Sales reporting: only orders that actually collected money count as a
+// "sale" — 'pending' means the fan started checkout but never completed
+// payment, so those are excluded. Joins in the project's title/type since
+// the report is meant to be read (and exported) without a second lookup.
+// from/to are inclusive 'YYYY-MM-DD' strings; either can be omitted.
+function listSalesForReport({ from, to } = {}) {
+  const clauses = [`orders.status IN ('paid', 'fulfilled')`];
+  const params = {};
+  if (from) {
+    clauses.push(`date(orders.created_at) >= date(@from)`);
+    params.from = from;
+  }
+  if (to) {
+    clauses.push(`date(orders.created_at) <= date(@to)`);
+    params.to = to;
+  }
+  return db
+    .prepare(
+      `SELECT orders.id AS orderId, orders.created_at AS createdAt, orders.fulfilled_at AS fulfilledAt,
+              orders.email AS email, orders.amount_cents AS amountCents, orders.currency AS currency,
+              orders.status AS status, projects.title AS projectTitle, projects.type AS projectType
+       FROM orders
+       JOIN projects ON projects.id = orders.project_id
+       WHERE ${clauses.join(' AND ')}
+       ORDER BY orders.created_at DESC`
+    )
+    .all(params);
+}
+
 function insertDownloadToken({ token, orderId, projectId, trackId, usesRemaining, expiresAt }) {
   db.prepare(
     `INSERT INTO download_tokens (token, order_id, project_id, track_id, uses_remaining, expires_at)
@@ -257,6 +286,7 @@ module.exports = {
   markOrderPaid,
   markOrderFulfilled,
   getOrder,
+  listSalesForReport,
   insertDownloadToken,
   getTokensForOrder,
   getToken,

@@ -33,6 +33,7 @@ function showView(name) {
   document.getElementById('view-login').classList.toggle('hidden', name !== 'login');
   document.getElementById('view-dashboard').classList.toggle('hidden', name !== 'dashboard');
   document.getElementById('view-editor').classList.toggle('hidden', name !== 'editor');
+  document.getElementById('view-sales').classList.toggle('hidden', name !== 'sales');
 }
 
 // ---------- state ----------
@@ -141,6 +142,78 @@ document.getElementById('btn-new-project').addEventListener('click', () => openE
 document.getElementById('btn-back').addEventListener('click', () => {
   showView('dashboard');
   loadProjects();
+});
+
+// ---------- sales report ----------
+
+function salesQueryString() {
+  const from = document.getElementById('sales-from').value;
+  const to = document.getElementById('sales-to').value;
+  const params = new URLSearchParams();
+  if (from) params.set('from', from);
+  if (to) params.set('to', to);
+  const qs = params.toString();
+  return qs ? `?${qs}` : '';
+}
+
+async function loadSales() {
+  const wrap = document.getElementById('sales-table-wrap');
+  wrap.innerHTML = '<p class="admin-loading">Loading…</p>';
+  document.getElementById('btn-export-sales').href = `/api/admin/sales/export.csv${salesQueryString()}`;
+
+  const { sales } = await api('GET', `/api/admin/sales${salesQueryString()}`);
+  renderSales(sales);
+}
+
+function renderSales(sales) {
+  const totalRevenueCents = sales.reduce((sum, s) => sum + s.amountCents, 0);
+  document.getElementById('sales-summary').innerHTML = `
+    <div class="admin-sales-metric"><span>${sales.length}</span>Sale${sales.length === 1 ? '' : 's'}</div>
+    <div class="admin-sales-metric"><span>${money(totalRevenueCents)}</span>Total revenue</div>
+  `;
+
+  const wrap = document.getElementById('sales-table-wrap');
+  if (!sales.length) {
+    wrap.innerHTML = '<p class="admin-empty">No sales in this range yet.</p>';
+    return;
+  }
+
+  wrap.innerHTML = `
+    <table class="admin-sales-table">
+      <thead>
+        <tr><th>Date</th><th>Project</th><th>Type</th><th>Customer</th><th>Amount</th><th>Status</th></tr>
+      </thead>
+      <tbody>
+        ${sales
+          .map((s) => {
+            const date = (s.fulfilledAt || s.createdAt || '').slice(0, 10);
+            return `
+              <tr>
+                <td>${date}</td>
+                <td>${s.projectTitle}</td>
+                <td>${s.projectType}</td>
+                <td>${s.email}</td>
+                <td>${money(s.amountCents)}</td>
+                <td>${s.status}</td>
+              </tr>
+            `;
+          })
+          .join('')}
+      </tbody>
+    </table>
+  `;
+}
+
+document.getElementById('btn-view-sales').addEventListener('click', () => {
+  showView('sales');
+  loadSales();
+});
+document.getElementById('btn-sales-back').addEventListener('click', () => showView('dashboard'));
+document.getElementById('btn-sales-filter').addEventListener('click', loadSales);
+document.getElementById('btn-sales-clear').addEventListener('click', () => {
+  document.getElementById('sales-from').value = '';
+  document.getElementById('sales-to').value = '';
+  loadSales();
 });
 
 // ---------- editor: project fields ----------

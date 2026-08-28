@@ -236,7 +236,25 @@ app.get('/api/download/:token', async (req, res) => {
 
 app.get('/health', (req, res) => res.json({ ok: true }));
 
-app.listen(PORT, () => {
+const server = app.listen(PORT, () => {
   console.log(`Kyle store server listening on ${BASE_URL}`);
   console.log(`Storage driver: ${storage.DRIVER}`);
 });
+
+// Railway (and most hosts) send SIGTERM whenever they want this process to
+// stop — replacing it with a new deploy, restarting it, scaling it down.
+// Without a handler, Node just dies mid-signal instead of exiting cleanly,
+// which makes npm log it as a failed command ("npm error signal SIGTERM")
+// even though nothing actually went wrong. That false "failure" is what
+// Railway's restart policy and crash notifications pick up on. Handling the
+// signal ourselves and exiting with code 0 tells the whole chain "this was a
+// clean, intentional stop" instead.
+function shutDown(signal) {
+  console.log(`Received ${signal}, shutting down gracefully.`);
+  server.close(() => process.exit(0));
+  // Belt-and-suspenders: if something's still holding a connection open,
+  // don't hang forever — force the exit after a few seconds.
+  setTimeout(() => process.exit(0), 5000).unref();
+}
+process.on('SIGTERM', () => shutDown('SIGTERM'));
+process.on('SIGINT', () => shutDown('SIGINT'));

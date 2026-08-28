@@ -25,11 +25,41 @@
     <header class="admin-header">
       <h1>Your Music</h1>
       <div class="admin-header-actions">
+        <button id="btn-view-sales" class="admin-btn-ghost">Sales</button>
         <button id="btn-new-project" class="admin-btn-primary">+ New Song or Album</button>
         <button id="btn-logout" class="admin-btn-ghost">Log Out</button>
       </div>
     </header>
     <div id="project-list" class="admin-project-list">
+      <p class="admin-loading">Loading…</p>
+    </div>
+  </div>
+
+  <!-- ===================== SALES REPORT ===================== -->
+  <div id="view-sales" class="admin-shell hidden">
+    <header class="admin-header">
+      <button id="btn-sales-back" class="admin-btn-ghost">&larr; Back to Your Music</button>
+      <div class="admin-header-actions">
+        <a id="btn-export-sales" class="admin-btn-primary" href="#">Export CSV</a>
+      </div>
+    </header>
+
+    <div class="admin-sales-filters">
+      <label class="admin-field">
+        From
+        <input type="date" id="sales-from" />
+      </label>
+      <label class="admin-field">
+        To
+        <input type="date" id="sales-to" />
+      </label>
+      <button id="btn-sales-filter" class="admin-btn-ghost">Apply</button>
+      <button id="btn-sales-clear" class="admin-btn-ghost">Clear</button>
+    </div>
+
+    <div id="sales-summary" class="admin-sales-summary"></div>
+
+    <div id="sales-table-wrap" class="admin-panel">
       <p class="admin-loading">Loading…</p>
     </div>
   </div>

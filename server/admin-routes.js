@@ -147,6 +147,50 @@ router.post('/projects/:id/reorder', (req, res) => {
   res.json({ projects: catalog.listAllProjects() });
 });
 
+// --- Sales report ---
+// One row per completed order. Every kyle-store purchase is for a whole
+// project (single/EP/album) at once — there's no way for a fan to buy one
+// song out of a multi-track release — so each row here is naturally a
+// "whole project" sale. That maps directly onto how Super Duper Splits (or
+// any royalty tool) should split revenue: evenly across every track in that
+// project, then by each track's contributor percentages.
+function csvField(value) {
+  return `"${String(value ?? '').replace(/"/g, '""')}"`;
+}
+
+function csvRow(order) {
+  // created_at is stored UTC without a 'Z' suffix by SQLite's datetime('now') —
+  // slice to just the date so it lines up with the <input type="date"> fields
+  // both this report's filters and Super Duper Splits use.
+  const date = (order.fulfilledAt || order.createdAt || '').slice(0, 10);
+  return [
+    order.orderId,
+    date,
+    order.projectTitle,
+    order.projectType,
+    1, // quantity — always 1, kyle-store checkout doesn't support buying multiple copies
+    order.email,
+    (order.amountCents / 100).toFixed(2),
+    order.currency,
+    order.status,
+  ];
+}
+
+router.get('/sales', (req, res) => {
+  const sales = db.listSalesForReport({ from: req.query.from, to: req.query.to });
+  res.json({ sales });
+});
+
+router.get('/sales/export.csv', (req, res) => {
+  const sales = db.listSalesForReport({ from: req.query.from, to: req.query.to });
+  const header = ['Order ID', 'Date', 'Project', 'Type', 'Quantity', 'Customer Email', 'Amount', 'Currency', 'Status'];
+  const csv = [header, ...sales.map(csvRow)].map((row) => row.map(csvField).join(',')).join('\r\n');
+
+  res.setHeader('Content-Type', 'text/csv');
+  res.setHeader('Content-Disposition', `attachment; filename="kyle-store-sales-${new Date().toISOString().slice(0, 10)}.csv"`);
+  res.send(csv);
+});
+
 router.post('/projects/:id/cover', (req, res) => {
   imageUpload.single('cover')(req, res, (err) => {
     if (err) return res.status(400).json({ error: err.message });
