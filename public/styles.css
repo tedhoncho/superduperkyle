@@ -51,7 +51,7 @@ body {
   margin: 0 auto;
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-start;
   gap: 16px;
   flex-wrap: wrap;
 }
@@ -70,28 +70,39 @@ body {
   transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
 }
 .nav-link:hover { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
-.tagline { color: var(--text-dim); margin: 18px 0 0; font-size: 15px; text-align: center; }
+.tagline { color: var(--text-dim); margin: 10px 0 0; font-size: 15px; text-align: center; }
 
+/* Full-width hype banner — the team wants this to be the loud, exciting
+   element of the header, so it takes the space freed up by pulling the logo
+   and "Main Site" link close together above (see .header-bar) instead of
+   spreading them across the whole row. */
 .countdown-banner {
-  display: flex;
-  justify-content: center;
-  align-items: baseline;
-  gap: 8px;
-  flex-wrap: wrap;
+  max-width: 960px;
   margin: 14px auto 0;
-  padding: 8px 16px;
-  max-width: fit-content;
+  padding: 14px 20px 16px;
   background: var(--surface-2);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  font-size: 13px;
+  text-align: center;
 }
-.countdown-label { color: var(--text-dim); }
+.countdown-label {
+  display: block;
+  color: var(--text-dim);
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin-bottom: 2px;
+}
 .countdown-clock {
+  display: block;
   color: var(--accent);
-  font-weight: 700;
+  font-family: var(--display-font);
+  font-weight: 400;
+  font-size: clamp(40px, 9vw, 88px);
+  line-height: 1.05;
+  letter-spacing: 0.03em;
   font-variant-numeric: tabular-nums;
-  letter-spacing: 0.02em;
 }
 
 .catalog {
