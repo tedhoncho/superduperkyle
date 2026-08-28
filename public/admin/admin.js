@@ -34,6 +34,8 @@ function showView(name) {
   document.getElementById('view-dashboard').classList.toggle('hidden', name !== 'dashboard');
   document.getElementById('view-editor').classList.toggle('hidden', name !== 'editor');
   document.getElementById('view-sales').classList.toggle('hidden', name !== 'sales');
+  document.getElementById('view-notifications').classList.toggle('hidden', name !== 'notifications');
+  document.getElementById('view-site').classList.toggle('hidden', name !== 'site');
 }
 
 // ---------- state ----------
@@ -214,6 +216,121 @@ document.getElementById('btn-sales-clear').addEventListener('click', () => {
   document.getElementById('sales-from').value = '';
   document.getElementById('sales-to').value = '';
   loadSales();
+});
+
+// ---------- notifications ----------
+
+async function loadNotificationSettings() {
+  document.getElementById('notifications-error').classList.add('hidden');
+  document.getElementById('notifications-success').classList.add('hidden');
+  const { settings } = await api('GET', '/api/admin/settings');
+  document.getElementById('field-notification-emails').value = settings.saleNotificationEmails || '';
+  document.getElementById('field-confirmation-message').value = settings.confirmationMessage || '';
+}
+
+document.getElementById('btn-view-notifications').addEventListener('click', () => {
+  showView('notifications');
+  loadNotificationSettings();
+});
+document.getElementById('btn-notifications-back').addEventListener('click', () => showView('dashboard'));
+
+document.getElementById('btn-save-notifications').addEventListener('click', async () => {
+  const errorEl = document.getElementById('notifications-error');
+  const successEl = document.getElementById('notifications-success');
+  errorEl.classList.add('hidden');
+  successEl.classList.add('hidden');
+
+  const btn = document.getElementById('btn-save-notifications');
+  btn.disabled = true;
+  btn.textContent = 'Saving…';
+
+  try {
+    await api('PUT', '/api/admin/settings', {
+      saleNotificationEmails: document.getElementById('field-notification-emails').value.trim(),
+      confirmationMessage: document.getElementById('field-confirmation-message').value.trim(),
+    });
+    successEl.classList.remove('hidden');
+  } catch (err) {
+    errorEl.textContent = err.message;
+    errorEl.classList.remove('hidden');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Save';
+  }
+});
+
+// ---------- site (header tagline + countdown) ----------
+// The <input type="datetime-local"> field only knows the browser's local
+// time zone and has no concept of UTC — the server stores an ISO string
+// (UTC) instead, so these two helpers do the conversion at the boundary
+// rather than passing local-looking strings around as if they were UTC.
+
+function isoToLocalInputValue(iso) {
+  if (!iso) return '';
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return '';
+  const pad = (n) => String(n).padStart(2, '0');
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+
+function localInputValueToIso(value) {
+  if (!value) return '';
+  // `new Date('YYYY-MM-DDTHH:mm')` (no timezone suffix) is parsed as local
+  // time by the browser — exactly what the datetime-local input gave us.
+  const d = new Date(value);
+  return Number.isNaN(d.getTime()) ? '' : d.toISOString();
+}
+
+async function loadSiteSettings() {
+  document.getElementById('site-error').classList.add('hidden');
+  document.getElementById('site-success').classList.add('hidden');
+  const { settings } = await api('GET', '/api/admin/settings');
+  document.getElementById('field-header-tagline').value = settings.headerTagline || '';
+  document.getElementById('field-countdown-enabled').checked = !!settings.countdownEnabled;
+  document.getElementById('field-countdown-label').value = settings.countdownLabel || '';
+  document.getElementById('field-countdown-target').value = isoToLocalInputValue(settings.countdownTargetAt);
+}
+
+document.getElementById('btn-view-site').addEventListener('click', () => {
+  showView('site');
+  loadSiteSettings();
+});
+document.getElementById('btn-site-back').addEventListener('click', () => showView('dashboard'));
+
+document.getElementById('btn-save-site').addEventListener('click', async () => {
+  const errorEl = document.getElementById('site-error');
+  const successEl = document.getElementById('site-success');
+  errorEl.classList.add('hidden');
+  successEl.classList.add('hidden');
+
+  const countdownEnabled = document.getElementById('field-countdown-enabled').checked;
+  const targetValue = document.getElementById('field-countdown-target').value;
+
+  if (countdownEnabled && !targetValue) {
+    errorEl.textContent = 'Set a target date/time before turning the countdown on.';
+    errorEl.classList.remove('hidden');
+    return;
+  }
+
+  const btn = document.getElementById('btn-save-site');
+  btn.disabled = true;
+  btn.textContent = 'Saving…';
+
+  try {
+    await api('PUT', '/api/admin/settings', {
+      headerTagline: document.getElementById('field-header-tagline').value.trim(),
+      countdownEnabled,
+      countdownLabel: document.getElementById('field-countdown-label').value.trim(),
+      countdownTargetAt: localInputValueToIso(targetValue),
+    });
+    successEl.classList.remove('hidden');
+  } catch (err) {
+    errorEl.textContent = err.message;
+    errorEl.classList.remove('hidden');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Save';
+  }
 });
 
 // ---------- editor: project fields ----------

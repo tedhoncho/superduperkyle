@@ -72,6 +72,28 @@ body {
 .nav-link:hover { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
 .tagline { color: var(--text-dim); margin: 18px 0 0; font-size: 15px; text-align: center; }
 
+.countdown-banner {
+  display: flex;
+  justify-content: center;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: 14px auto 0;
+  padding: 8px 16px;
+  max-width: fit-content;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font-size: 13px;
+}
+.countdown-label { color: var(--text-dim); }
+.countdown-clock {
+  color: var(--accent);
+  font-weight: 700;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+}
+
 .catalog {
   max-width: 960px;
   margin: 0 auto;

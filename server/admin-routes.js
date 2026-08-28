@@ -147,6 +147,67 @@ router.post('/projects/:id/reorder', (req, res) => {
   res.json({ projects: catalog.listAllProjects() });
 });
 
+// --- Notification & storefront settings ---
+// Non-secret, day-to-day config Ted/Kyle would want to tweak themselves —
+// deliberately kept separate from things like RESEND_API_KEY or the Stripe
+// keys, which stay as Railway env vars since those are credentials, not
+// content an admin-editable web form should be handling.
+
+function settingsToJson(row) {
+  return {
+    saleNotificationEmails: row.sale_notification_emails,
+    confirmationMessage: row.confirmation_message,
+    headerTagline: row.header_tagline,
+    countdownEnabled: !!row.countdown_enabled,
+    countdownLabel: row.countdown_label,
+    // Stored in SQLite as an ISO string (UTC) — passed straight through so the
+    // admin form and public storefront both just deal in ISO/epoch time.
+    countdownTargetAt: row.countdown_target_at,
+  };
+}
+
+router.get('/settings', (req, res) => {
+  res.json({ settings: settingsToJson(db.getSettings()) });
+});
+
+router.put('/settings', (req, res) => {
+  // The Notifications tab and the Site tab each save independently and only
+  // send the fields they own — merge onto the existing row rather than
+  // overwriting it wholesale, so saving one tab can't blank out the other's
+  // fields (e.g. saving the tagline shouldn't erase the notification emails).
+  const current = db.getSettings();
+
+  const saleNotificationEmails =
+    req.body.saleNotificationEmails !== undefined ? req.body.saleNotificationEmails.trim() : current.sale_notification_emails;
+  const confirmationMessage =
+    req.body.confirmationMessage !== undefined ? req.body.confirmationMessage.trim() : current.confirmation_message;
+  const headerTagline = req.body.headerTagline !== undefined ? req.body.headerTagline.trim() : current.header_tagline;
+  const countdownLabel = req.body.countdownLabel !== undefined ? req.body.countdownLabel.trim() : current.countdown_label;
+  const countdownEnabled =
+    req.body.countdownEnabled !== undefined
+      ? req.body.countdownEnabled === true || req.body.countdownEnabled === 'true'
+      : !!current.countdown_enabled;
+  const countdownTargetAt =
+    req.body.countdownTargetAt !== undefined ? (req.body.countdownTargetAt || '').trim() : current.countdown_target_at || '';
+
+  if (countdownEnabled && !countdownTargetAt) {
+    return res.status(400).json({ error: 'Set a target date/time before turning the countdown on.' });
+  }
+  if (countdownTargetAt && Number.isNaN(Date.parse(countdownTargetAt))) {
+    return res.status(400).json({ error: "That countdown date/time didn't parse — try picking it again." });
+  }
+
+  const settings = db.updateSettings({
+    saleNotificationEmails,
+    confirmationMessage,
+    headerTagline,
+    countdownEnabled,
+    countdownLabel,
+    countdownTargetAt: countdownTargetAt || null,
+  });
+  res.json({ settings: settingsToJson(settings) });
+});
+
 // --- Sales report ---
 // One row per completed order. Every kyle-store purchase is for a whole
 // project (single/EP/album) at once — there's no way for a fan to buy one

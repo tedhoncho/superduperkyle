@@ -70,7 +70,34 @@ CREATE TABLE IF NOT EXISTS download_tokens (
 );
 
 CREATE INDEX IF NOT EXISTS idx_tokens_order ON download_tokens(order_id);
+
+-- Single-row table for admin-editable settings (notification recipients,
+-- the fan-facing confirmation message). Deliberately separate from secrets
+-- like RESEND_API_KEY/STRIPE keys, which stay as Railway env vars — those
+-- are credentials, not day-to-day content Kyle/Ted would want to edit from
+-- a web form.
+CREATE TABLE IF NOT EXISTS settings (
+  id INTEGER PRIMARY KEY CHECK (id = 1),
+  sale_notification_emails TEXT NOT NULL DEFAULT '',
+  confirmation_message TEXT NOT NULL DEFAULT ''
+);
+INSERT OR IGNORE INTO settings (id, sale_notification_emails, confirmation_message) VALUES (1, '', '');
 `);
+
+// --- Migration: storefront content fields on settings (header tagline +
+// release countdown). Added after the settings table already shipped, so —
+// same as the projects.display_order migration above — check via PRAGMA
+// before altering rather than assuming a fresh table. ---
+const settingsColumns = db.prepare(`PRAGMA table_info(settings)`).all().map((c) => c.name);
+const settingsMigrations = {
+  header_tagline: `ALTER TABLE settings ADD COLUMN header_tagline TEXT NOT NULL DEFAULT ''`,
+  countdown_enabled: `ALTER TABLE settings ADD COLUMN countdown_enabled INTEGER NOT NULL DEFAULT 0`,
+  countdown_label: `ALTER TABLE settings ADD COLUMN countdown_label TEXT NOT NULL DEFAULT ''`,
+  countdown_target_at: `ALTER TABLE settings ADD COLUMN countdown_target_at TEXT`,
+};
+for (const [column, sql] of Object.entries(settingsMigrations)) {
+  if (!settingsColumns.includes(column)) db.exec(sql);
+}
 
 // --- Migration: projects.display_order (manual control over which release
 // is "featured" and how the rest are ordered). SQLite has no "ADD COLUMN IF
@@ -104,6 +131,38 @@ function markOrderFulfilled(id) {
   db.prepare(
     `UPDATE orders SET status = 'fulfilled', fulfilled_at = datetime('now') WHERE id = ?`
   ).run(id);
+}
+
+function getSettings() {
+  return db.prepare(`SELECT * FROM settings WHERE id = 1`).get();
+}
+
+function updateSettings({
+  saleNotificationEmails,
+  confirmationMessage,
+  headerTagline,
+  countdownEnabled,
+  countdownLabel,
+  countdownTargetAt,
+}) {
+  db.prepare(
+    `UPDATE settings SET
+       sale_notification_emails = ?,
+       confirmation_message = ?,
+       header_tagline = ?,
+       countdown_enabled = ?,
+       countdown_label = ?,
+       countdown_target_at = ?
+     WHERE id = 1`
+  ).run(
+    saleNotificationEmails,
+    confirmationMessage,
+    headerTagline,
+    countdownEnabled ? 1 : 0,
+    countdownLabel,
+    countdownTargetAt || null
+  );
+  return getSettings();
 }
 
 function getOrder(id) {
@@ -285,6 +344,8 @@ module.exports = {
   createOrder,
   markOrderPaid,
   markOrderFulfilled,
+  getSettings,
+  updateSettings,
   getOrder,
   listSalesForReport,
   insertDownloadToken,

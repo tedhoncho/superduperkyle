@@ -95,6 +95,24 @@ app.get('/api/catalog', (req, res) => {
   res.json({ projects: catalog.listProjectsPublic() });
 });
 
+// Public, non-secret storefront content — header tagline + release countdown —
+// both set from the admin "Site" tab. The countdown is only ever sent while
+// it's genuinely still counting down: once enabled but the target time has
+// passed, or it's simply turned off, this reports null and the storefront
+// just doesn't show a banner (auto-hide, no "0:00:00" or "available now" state).
+app.get('/api/site-settings', (req, res) => {
+  const settings = db.getSettings();
+  const targetAt = settings.countdown_target_at ? Date.parse(settings.countdown_target_at) : NaN;
+  const countdownLive = !!settings.countdown_enabled && !Number.isNaN(targetAt) && targetAt > Date.now();
+
+  res.json({
+    tagline: settings.header_tagline || '',
+    countdown: countdownLive
+      ? { label: settings.countdown_label || '', targetAt: new Date(targetAt).toISOString() }
+      : null,
+  });
+});
+
 // Streams a short preview clip (not the full purchasable file).
 app.get('/api/preview/:projectId/:trackId', (req, res) => {
   const track = catalog.getTrack(req.params.projectId, req.params.trackId);

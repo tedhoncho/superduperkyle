@@ -25,6 +25,8 @@
     <header class="admin-header">
       <h1>Your Music</h1>
       <div class="admin-header-actions">
+        <button id="btn-view-site" class="admin-btn-ghost">Site</button>
+        <button id="btn-view-notifications" class="admin-btn-ghost">Notifications</button>
         <button id="btn-view-sales" class="admin-btn-ghost">Sales</button>
         <button id="btn-new-project" class="admin-btn-primary">+ New Song or Album</button>
         <button id="btn-logout" class="admin-btn-ghost">Log Out</button>
@@ -33,6 +35,74 @@
     <div id="project-list" class="admin-project-list">
       <p class="admin-loading">Loading…</p>
     </div>
+  </div>
+
+  <!-- ===================== SITE (storefront tagline + countdown) ===================== -->
+  <div id="view-site" class="admin-shell hidden">
+    <header class="admin-header">
+      <button id="btn-site-back" class="admin-btn-ghost">&larr; Back to Your Music</button>
+    </header>
+
+    <section class="admin-panel">
+      <h2>Header tagline</h2>
+      <p class="admin-hint">The line of text under the logo on your storefront's homepage.</p>
+
+      <label class="admin-field">
+        Tagline
+        <input type="text" id="field-header-tagline" placeholder="Buy songs and projects direct — no streaming middleman." />
+      </label>
+
+      <h2 style="margin-top: 24px;">New release countdown</h2>
+      <p class="admin-hint">Shows a countdown banner under the tagline. It disappears on its own once the target time passes — no need to come back and turn it off.</p>
+
+      <label class="admin-checkbox">
+        <input type="checkbox" id="field-countdown-enabled" />
+        Show the countdown
+      </label>
+
+      <label class="admin-field">
+        Label
+        <input type="text" id="field-countdown-label" placeholder="New release drops in:" />
+      </label>
+
+      <label class="admin-field">
+        Countdown to (your local time)
+        <input type="datetime-local" id="field-countdown-target" />
+      </label>
+
+      <p id="site-error" class="admin-error hidden"></p>
+      <p id="site-success" class="admin-hint hidden" style="color: var(--accent);">Saved.</p>
+      <button id="btn-save-site" class="admin-btn-primary">Save</button>
+    </section>
+  </div>
+
+  <!-- ===================== NOTIFICATIONS ===================== -->
+  <div id="view-notifications" class="admin-shell hidden">
+    <header class="admin-header">
+      <button id="btn-notifications-back" class="admin-btn-ghost">&larr; Back to Your Music</button>
+    </header>
+
+    <section class="admin-panel">
+      <h2>Sale notifications</h2>
+      <p class="admin-hint">Get a short internal email every time someone buys something — separate from the fan's own download email, so it never shows up in their inbox.</p>
+
+      <label class="admin-field">
+        Notify these emails (comma-separated)
+        <input type="text" id="field-notification-emails" placeholder="you@example.com, kyle@example.com" />
+      </label>
+
+      <h2 style="margin-top: 24px;">Fan confirmation message</h2>
+      <p class="admin-hint">Shown in the email fans get right after buying, above their download links. Leave blank to use the default line.</p>
+
+      <label class="admin-field">
+        Message
+        <textarea id="field-confirmation-message" rows="3" placeholder="Here's your download for [project title]."></textarea>
+      </label>
+
+      <p id="notifications-error" class="admin-error hidden"></p>
+      <p id="notifications-success" class="admin-hint hidden" style="color: var(--accent);">Saved.</p>
+      <button id="btn-save-notifications" class="admin-btn-primary">Save</button>
+    </section>
   </div>
 
   <!-- ===================== SALES REPORT ===================== -->

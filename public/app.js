@@ -35,6 +35,71 @@ async function loadCatalog() {
   renderCatalog(data.projects);
 }
 
+// --- Header tagline + release countdown ---
+// Both are set from the admin "Site" tab. The server only ever sends a
+// countdown object while it's genuinely still counting down (see
+// /api/site-settings), so this code doesn't need to reason about "expired"
+// vs. "disabled" itself — no countdown in the response just means don't
+// show the banner.
+let countdownTimer = null;
+
+function stopCountdown() {
+  if (countdownTimer) clearInterval(countdownTimer);
+  countdownTimer = null;
+  document.getElementById('countdown-banner').classList.add('hidden');
+}
+
+function startCountdown(label, targetAt) {
+  const banner = document.getElementById('countdown-banner');
+  const labelEl = document.getElementById('countdown-label');
+  const clockEl = document.getElementById('countdown-clock');
+  const target = new Date(targetAt).getTime();
+
+  labelEl.textContent = label || 'New release drops in:';
+  banner.classList.remove('hidden');
+
+  function tick() {
+    const remainingMs = target - Date.now();
+    if (remainingMs <= 0) {
+      // Target time reached while a fan has the page open — auto-hide
+      // rather than showing a stuck 0:00:00 or an "available now" state.
+      stopCountdown();
+      return;
+    }
+    const totalSeconds = Math.floor(remainingMs / 1000);
+    const days = Math.floor(totalSeconds / 86400);
+    const hours = Math.floor((totalSeconds % 86400) / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    const seconds = totalSeconds % 60;
+    const dayPart = days > 0 ? `${days}d ` : '';
+    clockEl.textContent = `${dayPart}${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+  }
+
+  tick();
+  if (countdownTimer) clearInterval(countdownTimer);
+  countdownTimer = setInterval(tick, 1000);
+}
+
+async function loadSiteSettings() {
+  try {
+    const res = await fetch('/api/site-settings');
+    const data = await res.json();
+
+    const taglineEl = document.getElementById('site-tagline');
+    if (taglineEl && data.tagline) taglineEl.textContent = data.tagline;
+
+    if (data.countdown) {
+      startCountdown(data.countdown.label, data.countdown.targetAt);
+    } else {
+      stopCountdown();
+    }
+  } catch (err) {
+    // Non-critical — the storefront (catalog, checkout) works fine without
+    // this, so a failure here shouldn't block or error out the page.
+    console.error('[site-settings] failed to load:', err.message);
+  }
+}
+
 // Builds either a big "featured" card (used once, for the newest release) or
 // a normal grid card. Both open the same modal from the art, the title, or
 // the buy button — the markup differs, the wiring doesn't.
@@ -261,3 +326,4 @@ modalPayButton.addEventListener('click', async () => {
 });
 
 loadCatalog();
+loadSiteSettings();
