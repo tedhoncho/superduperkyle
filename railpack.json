@@ -4,6 +4,7 @@
     "node": "24.18.0"
   },
   "deploy": {
+    "startCommand": "node server/index.js",
     "aptPackages": ["...", "ffmpeg"]
   }
 }
