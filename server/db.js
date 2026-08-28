@@ -30,6 +30,7 @@ CREATE TABLE IF NOT EXISTS projects (
   pwyw_min_per_track_cents INTEGER,
   suggested_amounts_cents TEXT,          -- pipe-separated, auto-derived from the minimum
   description TEXT,
+  sold_out INTEGER NOT NULL DEFAULT 0,   -- 0/1 — stays visible/previewable, just can't be bought
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
@@ -114,6 +115,13 @@ if (!projectColumns.includes('display_order')) {
       ) ranked WHERE ranked.id = projects.id
     )
   `);
+}
+// --- Migration: projects.sold_out (added after the projects table already
+// shipped with real rows in it — same PRAGMA-check pattern as display_order
+// above). Existing rows default to 0 (not sold out), which is the only
+// sane default since nothing was ever marked sold out before this existed. ---
+if (!projectColumns.includes('sold_out')) {
+  db.exec(`ALTER TABLE projects ADD COLUMN sold_out INTEGER NOT NULL DEFAULT 0`);
 }
 
 function createOrder({ id, projectId, email, amountCents, currency }) {
@@ -239,9 +247,9 @@ function nextProjectDisplayOrder() {
 
 function insertProject(p) {
   db.prepare(
-    `INSERT INTO projects (id, title, type, release_year, cover_art_file, pricing_mode, fixed_price_cents, pwyw_min_per_track_cents, suggested_amounts_cents, description, display_order)
-     VALUES (@id, @title, @type, @releaseYear, @coverArtFile, @pricingMode, @fixedPriceCents, @pwywMinPerTrackCents, @suggestedAmountsCents, @description, @displayOrder)`
-  ).run({ ...p, displayOrder: nextProjectDisplayOrder() });
+    `INSERT INTO projects (id, title, type, release_year, cover_art_file, pricing_mode, fixed_price_cents, pwyw_min_per_track_cents, suggested_amounts_cents, description, sold_out, display_order)
+     VALUES (@id, @title, @type, @releaseYear, @coverArtFile, @pricingMode, @fixedPriceCents, @pwywMinPerTrackCents, @suggestedAmountsCents, @description, @soldOut, @displayOrder)`
+  ).run({ soldOut: 0, ...p, displayOrder: nextProjectDisplayOrder() });
 }
 
 function updateProject(id, fields) {
@@ -254,6 +262,7 @@ function updateProject(id, fields) {
        cover_art_file = @cover_art_file, pricing_mode = @pricing_mode,
        fixed_price_cents = @fixed_price_cents, pwyw_min_per_track_cents = @pwyw_min_per_track_cents,
        suggested_amounts_cents = @suggested_amounts_cents, description = @description,
+       sold_out = @sold_out,
        updated_at = datetime('now')
      WHERE id = @id`
   ).run(merged);

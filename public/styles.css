@@ -152,6 +152,48 @@ body {
 .featured-body .card-meta { margin: 0 0 20px; }
 .featured-body .buy-button { font-size: 14px; padding: 12px 18px; }
 
+/* Sold out — stays fully browsable (art, tracklist, previews), just can't
+   be bought. Grayscale + a banner communicates that at a glance without
+   hiding the release, and the buy button is restyled but stays clickable
+   so fans can still open the modal to look around. */
+.is-sold-out .card-art img,
+.is-sold-out .featured-art img,
+.is-sold-out .art-placeholder {
+  filter: grayscale(1) brightness(0.8);
+}
+.sold-out-banner {
+  position: absolute;
+  top: 18%;
+  left: -8%;
+  right: -8%;
+  transform: rotate(-8deg);
+  background: rgba(17, 17, 17, 0.82);
+  color: #fff;
+  text-align: center;
+  padding: 6px 0;
+  font-family: var(--display-font);
+  font-size: 15px;
+  font-weight: 400;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  pointer-events: none;
+}
+.is-sold-out .buy-button {
+  background: var(--surface-2);
+  color: var(--text-dim);
+  border: 1px solid var(--border);
+}
+
+.sold-out-notice {
+  color: var(--text-dim);
+  font-size: 13px;
+  text-align: center;
+  padding: 14px 0;
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  margin: 0 0 16px;
+}
+
 @media (max-width: 640px) {
   .featured-card { flex-direction: column; }
   .featured-art { flex: none; width: 100%; }
@@ -168,7 +210,7 @@ body {
 }
 .card:hover { transform: translateY(-4px); box-shadow: 0 10px 24px rgba(17,17,17,0.10); }
 
-.card-art, .featured-art { aspect-ratio: 1 / 1; background: var(--surface-2); overflow: hidden; }
+.card-art, .featured-art { position: relative; aspect-ratio: 1 / 1; background: var(--surface-2); overflow: hidden; }
 .card-art img, .featured-art img { width: 100%; height: 100%; object-fit: cover; display: block; transition: transform 0.2s ease; }
 .card:hover .card-art img { transform: scale(1.04); }
 .art-placeholder { width: 100%; height: 100%; background: linear-gradient(135deg, #f4f4f5, #e5e5e8); }

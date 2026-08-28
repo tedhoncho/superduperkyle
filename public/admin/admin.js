@@ -113,7 +113,7 @@ function renderProjectList(projects) {
       </div>
       ${project.coverArtFile ? `<img class="admin-project-thumb" src="/art/${project.coverArtFile}" />` : '<div class="admin-project-thumb"></div>'}
       <div class="admin-project-info">
-        <h3>${project.title}${index === 0 ? ' <span class="admin-featured-badge">Featured</span>' : ''}</h3>
+        <h3>${project.title}${index === 0 ? ' <span class="admin-featured-badge">Featured</span>' : ''}${project.soldOut ? ' <span class="admin-soldout-badge">Sold Out</span>' : ''}</h3>
         <p>${project.tracks.length} song${project.tracks.length === 1 ? '' : 's'} (${releasedCount} live) · ${priceLabel}</p>
       </div>
       <div class="admin-project-row-actions">
@@ -345,6 +345,7 @@ function openEditor(project) {
   document.getElementById('field-type').value = project ? project.type : 'single';
   document.getElementById('field-year').value = project ? (project.releaseYear || '') : '';
   document.getElementById('field-description').value = project ? project.description : '';
+  document.getElementById('field-sold-out').checked = project ? !!project.soldOut : false;
 
   const pricingMode = project ? project.pricingMode : 'fixed';
   document.querySelector(`input[name="pricingMode"][value="${pricingMode}"]`).checked = true;
@@ -392,6 +393,7 @@ document.getElementById('btn-save-project').addEventListener('click', async () =
     pricingMode: document.querySelector('input[name="pricingMode"]:checked').value,
     price: document.getElementById('field-price').value,
     description: document.getElementById('field-description').value.trim(),
+    soldOut: document.getElementById('field-sold-out').checked,
   };
 
   if (!body.title) {

@@ -113,31 +113,37 @@ function buildCard(project, isFeatured) {
   const art = project.coverArtFile
     ? `<img src="/art/${project.coverArtFile}" alt="${project.title} cover art" />`
     : '<div class="art-placeholder"></div>';
+  // Sold-out projects stay fully browsable (art, tracklist, previews all
+  // still work via the modal) — only the ability to buy goes away. The
+  // banner and grayscale treatment communicate that at a glance, and the
+  // button text/click behavior still opens the modal so fans can look.
+  const soldOutBanner = project.soldOut ? '<div class="sold-out-banner">Sold Out</div>' : '';
+  const buyLabel = project.soldOut ? 'Sold Out · View Songs' : `${priceLabel} · View Songs &amp; Buy`;
 
   const card = document.createElement('div');
 
   if (isFeatured) {
-    card.className = 'featured-card';
+    card.className = 'featured-card' + (project.soldOut ? ' is-sold-out' : '');
     card.innerHTML = `
-      <div class="featured-art">${art}</div>
+      <div class="featured-art">${art}${soldOutBanner}</div>
       <div class="featured-body">
         <span class="featured-badge">Latest Release</span>
         <h2>${project.title}</h2>
         <p class="card-meta">${project.type} ${project.releaseYear ? '· ' + project.releaseYear : ''} · ${trackCountLabel}</p>
         <div class="card-actions">
-          <button class="buy-button" data-project="${project.id}">${priceLabel} · View Songs &amp; Buy</button>
+          <button class="buy-button" data-project="${project.id}">${buyLabel}</button>
         </div>
       </div>
     `;
   } else {
-    card.className = 'card';
+    card.className = 'card' + (project.soldOut ? ' is-sold-out' : '');
     card.innerHTML = `
-      <div class="card-art">${art}</div>
+      <div class="card-art">${art}${soldOutBanner}</div>
       <div class="card-body">
         <h3>${project.title}</h3>
         <p class="card-meta">${project.type} ${project.releaseYear ? '· ' + project.releaseYear : ''} · ${trackCountLabel}</p>
         <div class="card-actions">
-          <button class="buy-button" data-project="${project.id}">${priceLabel} · View Songs &amp; Buy</button>
+          <button class="buy-button" data-project="${project.id}">${buyLabel}</button>
         </div>
       </div>
     `;
@@ -271,6 +277,29 @@ function openModal(project) {
     }
   }
 
+  // Sold out: tracklist/preview above still work as normal (renderModalTrackList
+  // already ran) — this just swaps the price + buy area for a plain notice and
+  // hides the email field and pay button, so there's no way to start a checkout
+  // for something that can't actually be fulfilled.
+  const soldOutNotice = document.getElementById('modal-sold-out-notice');
+  const emailLabel = document.querySelector('.email-label');
+  const finePrint = document.querySelector('.fine-print');
+  if (project.soldOut) {
+    modalPriceFixed.classList.add('hidden');
+    modalPricePwyw.classList.add('hidden');
+    soldOutNotice.classList.remove('hidden');
+    emailLabel.classList.add('hidden');
+    modalPayButton.classList.add('hidden');
+    finePrint.classList.add('hidden');
+  } else {
+    soldOutNotice.classList.add('hidden');
+    emailLabel.classList.remove('hidden');
+    modalPayButton.classList.remove('hidden');
+    modalPayButton.disabled = false;
+    modalPayButton.textContent = 'Continue to payment';
+    finePrint.classList.remove('hidden');
+  }
+
   modalBackdrop.classList.remove('hidden');
 }
 
@@ -286,6 +315,8 @@ modalBackdrop.addEventListener('click', (e) => {
 
 modalPayButton.addEventListener('click', async () => {
   modalError.classList.add('hidden');
+
+  if (currentProject.soldOut) return; // button is hidden for this case, but don't trust that alone
 
   const email = modalEmail.value.trim();
   if (!/^\S+@\S+\.\S+$/.test(email)) {

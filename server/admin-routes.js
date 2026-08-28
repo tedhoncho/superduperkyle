@@ -40,6 +40,7 @@ function projectFieldsFromBody(body) {
     pwyw_min_per_track_cents: pwywMinPerTrackCents,
     suggested_amounts_cents: pricingMode === 'pwyw' ? deriveSuggestedAmounts(pwywMinPerTrackCents) : '',
     description: body.description || '',
+    sold_out: body.soldOut === true || body.soldOut === 'true' ? 1 : 0,
   };
 }
 
@@ -95,6 +96,7 @@ router.post('/projects', (req, res) => {
     pwywMinPerTrackCents: fields.pwyw_min_per_track_cents,
     suggestedAmountsCents: fields.suggested_amounts_cents,
     description: fields.description,
+    soldOut: fields.sold_out,
   });
 
   res.json({ project: catalog.getProject(id) });

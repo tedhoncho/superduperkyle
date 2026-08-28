@@ -40,6 +40,7 @@ function rowToProject(row) {
       .map((s) => toIntOrNull(s))
       .filter((n) => n !== null),
     description: row.description || '',
+    soldOut: !!row.sold_out,
     tracks,
   };
 }
@@ -77,6 +78,7 @@ function listProjectsPublic() {
       pwywMinPerTrackCents: p.pwywMinPerTrackCents,
       suggestedAmountsCents: p.suggestedAmountsCents,
       description: p.description,
+      soldOut: p.soldOut,
       tracks: p.tracks.map((t) => ({
         id: t.id,
         trackNumber: t.trackNumber,

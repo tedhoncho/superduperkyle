@@ -134,6 +134,11 @@ app.post('/api/checkout', async (req, res) => {
 
     const project = catalog.getProject(projectId);
     if (!project) return res.status(404).json({ error: 'Project not found.' });
+    // Belt-and-suspenders: the storefront already hides/disables the buy
+    // button for a sold-out project, but a stale tab or a direct API call
+    // could still get here — block it server-side too rather than letting
+    // someone pay for something that can't actually be fulfilled.
+    if (project.soldOut) return res.status(400).json({ error: 'This project is sold out.' });
 
     const { amountCents: finalAmountCents, minCents } = catalog.priceForProject(project, amountCents);
 
