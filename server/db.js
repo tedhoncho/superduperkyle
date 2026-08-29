@@ -50,7 +50,8 @@ CREATE TABLE IF NOT EXISTS tracks (
 CREATE INDEX IF NOT EXISTS idx_tracks_project ON tracks(project_id);
 
 CREATE TABLE IF NOT EXISTS orders (
-  id TEXT PRIMARY KEY,               -- Stripe Checkout Session id
+  id TEXT PRIMARY KEY,               -- Stripe Checkout Session id (internal key, never shown to fans/Ted)
+  order_number TEXT,                 -- human-friendly: SDK-YYYYMMDD-XXXX, shown in emails/reports
   project_id TEXT NOT NULL,
   email TEXT NOT NULL,
   amount_cents INTEGER NOT NULL,
@@ -124,11 +125,48 @@ if (!projectColumns.includes('sold_out')) {
   db.exec(`ALTER TABLE projects ADD COLUMN sold_out INTEGER NOT NULL DEFAULT 0`);
 }
 
+// --- Migration: orders.order_number (short human-friendly id — SDK-YYYYMMDD-XXXX
+// — shown to fans/Ted instead of Stripe's long checkout session id). Added after
+// the orders table already had real rows, so backfill existing ones using their
+// own created_at date rather than leaving them blank. ---
+const orderColumns = db.prepare(`PRAGMA table_info(orders)`).all().map((c) => c.name);
+const ORDER_NUMBER_ALPHABET = 'ABCDEFGHJKMNPQRSTUVWXYZ23456789'; // no 0/O/1/I/L — easy to read aloud
+function randomOrderSuffix(length = 4) {
+  let out = '';
+  for (let i = 0; i < length; i++) {
+    out += ORDER_NUMBER_ALPHABET[Math.floor(Math.random() * ORDER_NUMBER_ALPHABET.length)];
+  }
+  return out;
+}
+function generateOrderNumber(dateObj = new Date()) {
+  const datePart = dateObj.toISOString().slice(0, 10).replace(/-/g, ''); // YYYYMMDD
+  // Collisions are astronomically unlikely at this store's volume, but a
+  // cheap retry loop costs nothing and makes the uniqueness guarantee real
+  // rather than assumed.
+  for (let attempt = 0; attempt < 20; attempt++) {
+    const candidate = `SDK-${datePart}-${randomOrderSuffix()}`;
+    const exists = db.prepare(`SELECT 1 FROM orders WHERE order_number = ?`).get(candidate);
+    if (!exists) return candidate;
+  }
+  // Should never happen, but fall back to a longer suffix rather than loop forever.
+  return `SDK-${datePart}-${randomOrderSuffix(8)}`;
+}
+if (!orderColumns.includes('order_number')) {
+  db.exec(`ALTER TABLE orders ADD COLUMN order_number TEXT`);
+  const existingOrders = db.prepare(`SELECT id, created_at FROM orders WHERE order_number IS NULL`).all();
+  const backfill = db.prepare(`UPDATE orders SET order_number = ? WHERE id = ?`);
+  for (const row of existingOrders) {
+    // created_at is stored as 'YYYY-MM-DD HH:MM:SS' (UTC, no timezone suffix) —
+    // Date() parses that fine for our purposes (just need the date portion).
+    backfill.run(generateOrderNumber(new Date(row.created_at)), row.id);
+  }
+}
+
 function createOrder({ id, projectId, email, amountCents, currency }) {
   db.prepare(
-    `INSERT OR IGNORE INTO orders (id, project_id, email, amount_cents, currency, status)
-     VALUES (?, ?, ?, ?, ?, 'pending')`
-  ).run(id, projectId, email, amountCents, currency);
+    `INSERT OR IGNORE INTO orders (id, order_number, project_id, email, amount_cents, currency, status)
+     VALUES (?, ?, ?, ?, ?, ?, 'pending')`
+  ).run(id, generateOrderNumber(), projectId, email, amountCents, currency);
 }
 
 function markOrderPaid(id) {
@@ -195,7 +233,8 @@ function listSalesForReport({ from, to } = {}) {
   }
   return db
     .prepare(
-      `SELECT orders.id AS orderId, orders.created_at AS createdAt, orders.fulfilled_at AS fulfilledAt,
+      `SELECT orders.order_number AS orderNumber, orders.id AS stripeSessionId,
+              orders.created_at AS createdAt, orders.fulfilled_at AS fulfilledAt,
               orders.email AS email, orders.amount_cents AS amountCents, orders.currency AS currency,
               orders.status AS status, projects.title AS projectTitle, projects.type AS projectType
        FROM orders

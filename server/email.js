@@ -99,7 +99,7 @@ async function sendSaleNotification({ artistName, projectTitle, amountCents, cur
           <li><strong>Project:</strong> ${escapeHtml(projectTitle)}</li>
           <li><strong>Amount:</strong> ${amount}</li>
           <li><strong>Customer:</strong> ${escapeHtml(customerEmail)}</li>
-          <li><strong>Order ID:</strong> ${escapeHtml(orderId)}</li>
+          <li><strong>Order #:</strong> ${escapeHtml(orderId)}</li>
         </ul>
       </div>
     `,

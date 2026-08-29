@@ -183,7 +183,7 @@ function renderSales(sales) {
   wrap.innerHTML = `
     <table class="admin-sales-table">
       <thead>
-        <tr><th>Date</th><th>Project</th><th>Type</th><th>Customer</th><th>Amount</th><th>Status</th></tr>
+        <tr><th>Order #</th><th>Date</th><th>Project</th><th>Type</th><th>Customer</th><th>Amount</th><th>Status</th></tr>
       </thead>
       <tbody>
         ${sales
@@ -191,6 +191,7 @@ function renderSales(sales) {
             const date = (s.fulfilledAt || s.createdAt || '').slice(0, 10);
             return `
               <tr>
+                <td>${s.orderNumber || '—'}</td>
                 <td>${date}</td>
                 <td>${s.projectTitle}</td>
                 <td>${s.projectType}</td>

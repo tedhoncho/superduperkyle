@@ -227,7 +227,7 @@ function csvRow(order) {
   // both this report's filters and Super Duper Splits use.
   const date = (order.fulfilledAt || order.createdAt || '').slice(0, 10);
   return [
-    order.orderId,
+    order.orderNumber,
     date,
     order.projectTitle,
     order.projectType,
@@ -236,6 +236,7 @@ function csvRow(order) {
     (order.amountCents / 100).toFixed(2),
     order.currency,
     order.status,
+    order.stripeSessionId, // kept for the rare case you need to look this order up in Stripe's own dashboard
   ];
 }
 
@@ -246,7 +247,7 @@ router.get('/sales', (req, res) => {
 
 router.get('/sales/export.csv', (req, res) => {
   const sales = db.listSalesForReport({ from: req.query.from, to: req.query.to });
-  const header = ['Order ID', 'Date', 'Project', 'Type', 'Quantity', 'Customer Email', 'Amount', 'Currency', 'Status'];
+  const header = ['Order #', 'Date', 'Project', 'Type', 'Quantity', 'Customer Email', 'Amount', 'Currency', 'Status', 'Stripe Session ID'];
   const csv = [header, ...sales.map(csvRow)].map((row) => row.map(csvField).join(',')).join('\r\n');
 
   res.setHeader('Content-Type', 'text/csv');

@@ -53,7 +53,7 @@ async function fulfillOrder(orderId) {
       amountCents: order.amount_cents,
       currency: order.currency,
       customerEmail: order.email,
-      orderId: order.id,
+      orderId: order.order_number,
     });
   } catch (err) {
     // Same reasoning as above — a notification hiccup shouldn't block a
