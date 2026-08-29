@@ -78,16 +78,24 @@ function setFooterPadding() {
   document.body.style.paddingBottom = footerEl.classList.contains('hidden') ? '' : `${footerEl.offsetHeight}px`;
 }
 
+// Compact shows just the now-playing bar; full is tall enough for Spotify's
+// embed to switch to its own scrollable track list — same iframe, no reload,
+// so playback that's already going doesn't get interrupted.
+const SPOTIFY_COMPACT_HEIGHT = 80;
+const SPOTIFY_FULL_HEIGHT = 352;
+
 function renderSpotifyFooter(playlistId) {
   footerEl.classList.remove('hidden');
   footerEl.innerHTML = `
-    <button id="spotify-footer-toggle" class="spotify-footer-toggle" aria-label="Hide player">&darr;</button>
+    <button id="spotify-footer-expand" class="spotify-footer-icon-btn" aria-label="Show full playlist">+</button>
+    <button id="spotify-footer-toggle" class="spotify-footer-icon-btn" aria-label="Hide player">&darr;</button>
     <div class="spotify-footer-player">
       <iframe
+        id="spotify-footer-iframe"
         title="Kyle's Spotify playlist"
         src="https://open.spotify.com/embed/playlist/${playlistId}?utm_source=generator"
         width="100%"
-        height="80"
+        height="${SPOTIFY_COMPACT_HEIGHT}"
         frameborder="0"
         allowfullscreen=""
         allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
@@ -97,18 +105,32 @@ function renderSpotifyFooter(playlistId) {
     <button id="spotify-footer-pill" class="spotify-footer-pill hidden">🎧 Kyle's Playlist &uarr;</button>
   `;
 
+  const expandBtn = document.getElementById('spotify-footer-expand');
   const toggleBtn = document.getElementById('spotify-footer-toggle');
   const pillBtn = document.getElementById('spotify-footer-pill');
   const player = footerEl.querySelector('.spotify-footer-player');
+  const iframe = document.getElementById('spotify-footer-iframe');
+
+  let trackListShown = false;
+  function toggleTrackList() {
+    trackListShown = !trackListShown;
+    iframe.height = trackListShown ? SPOTIFY_FULL_HEIGHT : SPOTIFY_COMPACT_HEIGHT;
+    expandBtn.textContent = trackListShown ? '−' : '+';
+    expandBtn.setAttribute('aria-label', trackListShown ? 'Show less' : 'Show full playlist');
+    setFooterPadding();
+  }
+  expandBtn.addEventListener('click', toggleTrackList);
 
   function collapse() {
     player.classList.add('hidden');
+    expandBtn.classList.add('hidden');
     toggleBtn.classList.add('hidden');
     pillBtn.classList.remove('hidden');
     setFooterPadding();
   }
   function expand() {
     player.classList.remove('hidden');
+    expandBtn.classList.remove('hidden');
     toggleBtn.classList.remove('hidden');
     pillBtn.classList.add('hidden');
     setFooterPadding();

@@ -474,23 +474,25 @@ body {
 .spotify-footer-player {
   max-width: 720px;
   margin: 0 auto;
-  padding: 8px 48px 8px 8px;
+  padding: 8px 90px 8px 8px;
 }
-.spotify-footer-player iframe { display: block; border-radius: 12px; }
-.spotify-footer-toggle {
+.spotify-footer-player iframe { display: block; border-radius: 12px; width: 100%; }
+.spotify-footer-icon-btn {
   position: absolute;
   top: 8px;
-  right: 12px;
   width: 30px;
   height: 30px;
   border-radius: 50%;
   border: 1px solid var(--border);
   background: #fff;
   color: var(--text-dim);
-  font-size: 14px;
+  font-size: 16px;
+  line-height: 1;
   cursor: pointer;
 }
-.spotify-footer-toggle:hover { background: var(--surface-2); }
+.spotify-footer-icon-btn:hover { background: var(--surface-2); }
+#spotify-footer-expand { right: 50px; }
+#spotify-footer-toggle { right: 12px; }
 .spotify-footer-pill {
   display: block;
   width: 100%;
