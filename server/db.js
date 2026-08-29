@@ -125,6 +125,14 @@ const settingsMigrations = {
   // of leaderboard_visible above, since the playlist is an ongoing thing,
   // not tied to any one month's contest. Empty string = don't show it.
   spotify_playlist_id: `ALTER TABLE settings ADD COLUMN spotify_playlist_id TEXT NOT NULL DEFAULT ''`,
+  // Editable heading/subheading shown at the top of the public leaderboard
+  // page (above the entries). One pair of text, used regardless of sort
+  // mode — rank mode is dormant, so there's no need for it to carry its own
+  // separate copy right now. Defaults match the text that was hardcoded
+  // before this became editable, so nothing changes on the live site until
+  // Ted actually edits it.
+  leaderboard_heading: `ALTER TABLE settings ADD COLUMN leaderboard_heading TEXT NOT NULL DEFAULT 'Feature Contest Leaderboard'`,
+  leaderboard_subheading: `ALTER TABLE settings ADD COLUMN leaderboard_subheading TEXT NOT NULL DEFAULT 'Every stream, Kyle picks his favorite submissions — these are added to the pool for the end-of-month feature.'`,
 };
 for (const [column, sql] of Object.entries(settingsMigrations)) {
   if (!settingsColumns.includes(column)) db.exec(sql);
@@ -222,6 +230,8 @@ function updateSettings({
   leaderboardVisible,
   leaderboardSortMode,
   spotifyPlaylistId,
+  leaderboardHeading,
+  leaderboardSubheading,
 }) {
   db.prepare(
     `UPDATE settings SET
@@ -233,7 +243,9 @@ function updateSettings({
        countdown_target_at = ?,
        leaderboard_visible = ?,
        leaderboard_sort_mode = ?,
-       spotify_playlist_id = ?
+       spotify_playlist_id = ?,
+       leaderboard_heading = ?,
+       leaderboard_subheading = ?
      WHERE id = 1`
   ).run(
     saleNotificationEmails,
@@ -244,7 +256,9 @@ function updateSettings({
     countdownTargetAt || null,
     leaderboardVisible ? 1 : 0,
     leaderboardSortMode === 'rank' ? 'rank' : 'date',
-    spotifyPlaylistId || ''
+    spotifyPlaylistId || '',
+    leaderboardHeading,
+    leaderboardSubheading
   );
   return getSettings();
 }

@@ -168,6 +168,8 @@ function settingsToJson(row) {
     leaderboardVisible: !!row.leaderboard_visible,
     leaderboardSortMode: row.leaderboard_sort_mode,
     spotifyPlaylistId: row.spotify_playlist_id || '',
+    leaderboardHeading: row.leaderboard_heading,
+    leaderboardSubheading: row.leaderboard_subheading,
   };
 }
 
@@ -214,6 +216,10 @@ router.put('/settings', (req, res) => {
       : !!current.leaderboard_visible;
   const leaderboardSortMode =
     req.body.leaderboardSortMode !== undefined ? req.body.leaderboardSortMode : current.leaderboard_sort_mode;
+  const leaderboardHeading =
+    req.body.leaderboardHeading !== undefined ? req.body.leaderboardHeading.trim() : current.leaderboard_heading;
+  const leaderboardSubheading =
+    req.body.leaderboardSubheading !== undefined ? req.body.leaderboardSubheading.trim() : current.leaderboard_subheading;
 
   let spotifyPlaylistId = current.spotify_playlist_id || '';
   if (req.body.spotifyPlaylistLink !== undefined) {
@@ -241,6 +247,8 @@ router.put('/settings', (req, res) => {
     leaderboardVisible,
     leaderboardSortMode,
     spotifyPlaylistId,
+    leaderboardHeading,
+    leaderboardSubheading,
   });
   res.json({ settings: settingsToJson(settings) });
 });

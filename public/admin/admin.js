@@ -628,6 +628,8 @@ async function loadLeaderboardSettings() {
   const mode = settings.leaderboardSortMode === 'rank' ? 'rank' : 'date';
   document.querySelector(`input[name="leaderboardSortMode"][value="${mode}"]`).checked = true;
   document.getElementById('field-spotify-playlist').value = settings.spotifyPlaylistId || '';
+  document.getElementById('field-leaderboard-heading').value = settings.leaderboardHeading || '';
+  document.getElementById('field-leaderboard-subheading').value = settings.leaderboardSubheading || '';
 }
 
 document.getElementById('btn-view-leaderboard').addEventListener('click', () => {
@@ -653,6 +655,8 @@ document.getElementById('btn-save-leaderboard-settings').addEventListener('click
       leaderboardVisible: document.getElementById('field-leaderboard-visible').checked,
       leaderboardSortMode: document.querySelector('input[name="leaderboardSortMode"]:checked').value,
       spotifyPlaylistLink: document.getElementById('field-spotify-playlist').value.trim(),
+      leaderboardHeading: document.getElementById('field-leaderboard-heading').value.trim(),
+      leaderboardSubheading: document.getElementById('field-leaderboard-subheading').value.trim(),
     });
     successEl.classList.remove('hidden');
   } catch (err) {

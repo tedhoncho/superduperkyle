@@ -40,19 +40,25 @@ function renderEntry(entry, rankNumber) {
   `;
 }
 
-function renderEntries(sortMode, entries) {
-  const heading =
-    sortMode === 'rank'
-      ? '<h1>Feature Contest Ranking</h1><p class="leaderboard-sub">Kyle\'s picks, ranked.</p>'
-      : '<h1>Feature Contest Leaderboard</h1><p class="leaderboard-sub">Every stream, Kyle picks his favorite submissions — these are added to the pool for the end-of-month feature.</p>';
+// Escapes the admin-editable heading/subheading text before dropping it
+// into innerHTML, since it's free-form input from a form rather than a
+// fixed template string.
+function escapeHtml(str) {
+  const div = document.createElement('div');
+  div.textContent = str;
+  return div.innerHTML;
+}
+
+function renderEntries(sortMode, entries, heading, subheading) {
+  const headingHtml = `<h1>${escapeHtml(heading)}</h1>${subheading ? `<p class="leaderboard-sub">${escapeHtml(subheading)}</p>` : ''}`;
 
   if (!entries.length) {
-    mainEl.innerHTML = `${heading}<p class="loading">No picks yet — check back after the next stream.</p>`;
+    mainEl.innerHTML = `${headingHtml}<p class="loading">No picks yet — check back after the next stream.</p>`;
     return;
   }
 
   const rows = entries.map((e, i) => renderEntry(e, sortMode === 'rank' ? i + 1 : null)).join('');
-  mainEl.innerHTML = `${heading}<div class="leaderboard-list">${rows}</div>`;
+  mainEl.innerHTML = `${headingHtml}<div class="leaderboard-list">${rows}</div>`;
 }
 
 // --- Spotify playlist footer ---
@@ -119,7 +125,7 @@ async function load() {
     const data = await res.json();
 
     if (data.visible) {
-      renderEntries(data.sortMode, data.entries);
+      renderEntries(data.sortMode, data.entries, data.heading, data.subheading);
     } else {
       renderClosed();
     }

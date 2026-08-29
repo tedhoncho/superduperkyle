@@ -134,7 +134,14 @@ app.get('/api/leaderboard', (req, res) => {
         isWinner: !!row.is_winner,
       }))
     : [];
-  res.json({ visible, sortMode, entries, spotifyPlaylistId: settings.spotify_playlist_id || '' });
+  res.json({
+    visible,
+    sortMode,
+    entries,
+    spotifyPlaylistId: settings.spotify_playlist_id || '',
+    heading: settings.leaderboard_heading || 'Feature Contest Leaderboard',
+    subheading: settings.leaderboard_subheading || '',
+  });
 });
 
 // Streams a short preview clip (not the full purchasable file).
