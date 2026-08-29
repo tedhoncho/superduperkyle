@@ -91,7 +91,10 @@
         <input type="checkbox" id="field-leaderboard-visible" />
         Show the Leaderboard tab on the site
       </label>
-      <p class="admin-hint" style="margin: -4px 0 14px;">Turn this off once Kyle picks the winner (or the raffle happens) — the nav link disappears and the entries stop showing, even to someone with the page bookmarked. The Spotify playlist below stays visible either way, since that's ongoing.</p>
+      <details class="admin-hint-toggle">
+        <summary>What does this do?</summary>
+        <p class="admin-hint">Turn this off once Kyle picks the winner (or the raffle happens) — the nav link disappears and the entries stop showing, even to someone with the page bookmarked. The Spotify playlist below stays visible either way, since that's ongoing.</p>
+      </details>
 
       <label class="admin-field">
         Page heading
@@ -118,13 +121,19 @@
         <input type="checkbox" id="field-leaderboard-thumbs-enabled" />
         Let fans thumbs-up picks on the public page
       </label>
-      <p class="admin-hint" style="margin: -4px 0 14px;">Off by default — built and ready, but fans won't see it until you turn it on for a contest you want it live for.</p>
+      <details class="admin-hint-toggle">
+        <summary>What does this do?</summary>
+        <p class="admin-hint">Off by default — built and ready, but fans won't see it until you turn it on for a contest you want it live for.</p>
+      </details>
 
       <label class="admin-checkbox" style="margin-left: 24px;">
         <input type="checkbox" id="field-leaderboard-thumbs-limit-one" />
         Limit to one vote per person (per browser)
       </label>
-      <p class="admin-hint" style="margin: -4px 0 0 24px;">Off by default — good for the early days when you want people voting as much as they like to build buzz. Turn it on later once traffic picks up and you want the count to mean one vote per fan. There are no fan accounts on this site, so either way it's enforced per browser, not per person — a fun engagement number, not a tamper-proof poll.</p>
+      <details class="admin-hint-toggle" style="margin-left: 24px;">
+        <summary>What does this do?</summary>
+        <p class="admin-hint">Off by default — good for the early days when you want people voting as much as they like to build buzz. Turn it on later once traffic picks up and you want the count to mean one vote per fan. There are no fan accounts on this site, so either way it's enforced per browser, not per person — a fun engagement number, not a tamper-proof poll.</p>
+      </details>
 
       <h2 style="margin-top: 24px;">Spotify playlist</h2>
       <p class="admin-hint">The playlist Kyle adds favorite stream submissions to. Shown as a small pinned player on the leaderboard page — stays up even while the contest itself is hidden. Paste the share link, the embed link, or just the playlist ID; leave blank to not show a player.</p>

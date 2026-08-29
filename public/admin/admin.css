@@ -168,6 +168,26 @@ body { background: var(--surface-2); }
 .admin-checkbox { display: flex; align-items: flex-start; gap: 8px; font-size: 13px; color: var(--text); margin: 10px 0; cursor: pointer; }
 .admin-checkbox input { margin-top: 3px; }
 
+/* Collapsed by default so a row of checkboxes reads as a scannable list of
+   titles — the explanation is a click away instead of always taking up
+   space. Native <details>/<summary> gets the toggle behavior and keyboard
+   support for free. */
+.admin-hint-toggle { margin: -6px 0 12px; }
+.admin-hint-toggle summary {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--text-dim);
+  cursor: pointer;
+  list-style: none;
+}
+.admin-hint-toggle summary::-webkit-details-marker { display: none; }
+.admin-hint-toggle summary::before { content: "▸"; font-size: 9px; }
+.admin-hint-toggle[open] summary::before { content: "▾"; }
+.admin-hint-toggle summary:hover { color: var(--text); }
+.admin-hint-toggle .admin-hint { margin: 4px 0 0; }
+
 /* --- Drop zones --- */
 .admin-dropzone {
   border: 2px dashed var(--border);
