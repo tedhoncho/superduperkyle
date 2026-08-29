@@ -55,15 +55,76 @@ function renderEntries(sortMode, entries) {
   mainEl.innerHTML = `${heading}<div class="leaderboard-list">${rows}</div>`;
 }
 
+// --- Spotify playlist footer ---
+// Pinned to the bottom of this page only (not site-wide) and shown whenever
+// Ted has a playlist configured, independent of whether the contest entries
+// above are currently visible — the playlist is Kyle's ongoing "songs I
+// liked" list, not something tied to any one month's contest.
+//
+// Built once, then just toggled with a class — re-rendering the iframe's
+// innerHTML on every collapse/expand would reload it each time, killing any
+// playback that was already going. The collapse is session-only by design:
+// it always starts expanded on a fresh visit, it just doesn't fight a fan
+// who tucks it away while they browse this load.
+const footerEl = document.getElementById('spotify-footer');
+
+function setFooterPadding() {
+  document.body.style.paddingBottom = footerEl.classList.contains('hidden') ? '' : `${footerEl.offsetHeight}px`;
+}
+
+function renderSpotifyFooter(playlistId) {
+  footerEl.classList.remove('hidden');
+  footerEl.innerHTML = `
+    <button id="spotify-footer-toggle" class="spotify-footer-toggle" aria-label="Hide player">&darr;</button>
+    <div class="spotify-footer-player">
+      <iframe
+        title="Kyle's Spotify playlist"
+        src="https://open.spotify.com/embed/playlist/${playlistId}?utm_source=generator"
+        width="100%"
+        height="80"
+        frameborder="0"
+        allowfullscreen=""
+        allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
+        loading="lazy"
+      ></iframe>
+    </div>
+    <button id="spotify-footer-pill" class="spotify-footer-pill hidden">🎧 Kyle's Playlist &uarr;</button>
+  `;
+
+  const toggleBtn = document.getElementById('spotify-footer-toggle');
+  const pillBtn = document.getElementById('spotify-footer-pill');
+  const player = footerEl.querySelector('.spotify-footer-player');
+
+  function collapse() {
+    player.classList.add('hidden');
+    toggleBtn.classList.add('hidden');
+    pillBtn.classList.remove('hidden');
+    setFooterPadding();
+  }
+  function expand() {
+    player.classList.remove('hidden');
+    toggleBtn.classList.remove('hidden');
+    pillBtn.classList.add('hidden');
+    setFooterPadding();
+  }
+  toggleBtn.addEventListener('click', collapse);
+  pillBtn.addEventListener('click', expand);
+
+  setFooterPadding();
+}
+
 async function load() {
   try {
     const res = await fetch('/api/leaderboard');
-    if (res.status === 404) {
-      renderClosed();
-      return;
-    }
     const data = await res.json();
-    renderEntries(data.sortMode, data.entries);
+
+    if (data.visible) {
+      renderEntries(data.sortMode, data.entries);
+    } else {
+      renderClosed();
+    }
+
+    if (data.spotifyPlaylistId) renderSpotifyFooter(data.spotifyPlaylistId);
   } catch (err) {
     mainEl.innerHTML = '<p class="loading">Could not load the leaderboard right now.</p>';
   }

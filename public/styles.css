@@ -460,6 +460,53 @@ body {
   .entry-actions { align-items: flex-start; flex-direction: row; flex-wrap: wrap; }
 }
 
+/* --- Spotify playlist footer (leaderboard page only) --- */
+.spotify-footer {
+  position: fixed;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 50;
+  background: #fff;
+  border-top: 1px solid var(--border);
+  box-shadow: 0 -6px 20px rgba(17, 17, 17, 0.08);
+}
+.spotify-footer-player {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 8px 48px 8px 8px;
+}
+.spotify-footer-player iframe { display: block; border-radius: 12px; }
+.spotify-footer-toggle {
+  position: absolute;
+  top: 8px;
+  right: 12px;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  border: 1px solid var(--border);
+  background: #fff;
+  color: var(--text-dim);
+  font-size: 14px;
+  cursor: pointer;
+}
+.spotify-footer-toggle:hover { background: var(--surface-2); }
+.spotify-footer-pill {
+  display: block;
+  width: 100%;
+  border: none;
+  background: var(--accent);
+  color: var(--accent-text);
+  font-family: var(--display-font);
+  font-size: 15px;
+  letter-spacing: 0.02em;
+  padding: 10px;
+  cursor: pointer;
+  text-align: center;
+}
+.spotify-footer-pill:hover { filter: brightness(1.05); }
+.spotify-footer-pill.hidden { display: none; }
+
 .success-page {
   max-width: 480px;
   margin: 40px auto;

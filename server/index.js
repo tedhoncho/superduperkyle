@@ -115,25 +115,26 @@ app.get('/api/site-settings', (req, res) => {
 });
 
 // Feature Contest leaderboard — hand-curated picks from Kyle's Twitch stream
-// (see the admin "Leaderboard" tab). Deliberately a hard 404, not just an
-// empty list, when Ted has the tab switched off: the nav link disappears at
-// the same time (see /api/site-settings above), so someone with the page
-// bookmarked or linked from an old post shouldn't see any contest data
-// either — it should look like the page genuinely isn't there right now.
+// (see the admin "Leaderboard" tab). `visible` is Ted's on/off switch: when
+// it's off, `entries` comes back empty rather than 404ing the whole route —
+// someone with the page bookmarked or linked from an old post still
+// shouldn't see any contest data, but the Spotify playlist below is a
+// separate, ongoing thing (see spotifyPlaylistId) that keeps showing either
+// way, so the route needs to succeed even while the contest itself is hidden.
 app.get('/api/leaderboard', (req, res) => {
   const settings = db.getSettings();
-  if (!settings.leaderboard_visible) {
-    return res.status(404).json({ error: 'not_visible' });
-  }
+  const visible = !!settings.leaderboard_visible;
   const sortMode = settings.leaderboard_sort_mode === 'rank' ? 'rank' : 'date';
-  const entries = db.listLeaderboardEntriesPublic(sortMode).map((row) => ({
-    artist: row.artist,
-    songTitle: row.song_title,
-    streamDate: row.stream_date,
-    link: row.link || '',
-    isWinner: !!row.is_winner,
-  }));
-  res.json({ sortMode, entries });
+  const entries = visible
+    ? db.listLeaderboardEntriesPublic(sortMode).map((row) => ({
+        artist: row.artist,
+        songTitle: row.song_title,
+        streamDate: row.stream_date,
+        link: row.link || '',
+        isWinner: !!row.is_winner,
+      }))
+    : [];
+  res.json({ visible, sortMode, entries, spotifyPlaylistId: settings.spotify_playlist_id || '' });
 });
 
 // Streams a short preview clip (not the full purchasable file).

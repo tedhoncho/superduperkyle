@@ -91,7 +91,7 @@
         <input type="checkbox" id="field-leaderboard-visible" />
         Show the Leaderboard tab on the site
       </label>
-      <p class="admin-hint" style="margin: -4px 0 14px;">Turn this off once Kyle picks the winner (or the raffle happens) — the nav link and the page both go away, nothing stays reachable by a direct link.</p>
+      <p class="admin-hint" style="margin: -4px 0 14px;">Turn this off once Kyle picks the winner (or the raffle happens) — the nav link disappears and the entries stop showing, even to someone with the page bookmarked. The Spotify playlist below stays visible either way, since that's ongoing.</p>
 
       <fieldset class="admin-pricing-choice">
         <legend>Public page order</legend>
@@ -104,6 +104,13 @@
           Rank (for a future ranked contest — uses the order set below)
         </label>
       </fieldset>
+
+      <h2 style="margin-top: 24px;">Spotify playlist</h2>
+      <p class="admin-hint">The playlist Kyle adds favorite stream submissions to. Shown as a small pinned player on the leaderboard page — stays up even while the contest itself is hidden. Paste the share link, the embed link, or just the playlist ID; leave blank to not show a player.</p>
+      <label class="admin-field">
+        Playlist link
+        <input type="text" id="field-spotify-playlist" placeholder="https://open.spotify.com/playlist/..." />
+      </label>
 
       <p id="leaderboard-settings-error" class="admin-error hidden"></p>
       <p id="leaderboard-settings-success" class="admin-hint hidden" style="color: var(--accent);">Saved.</p>

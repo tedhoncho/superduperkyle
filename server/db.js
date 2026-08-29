@@ -120,6 +120,11 @@ const settingsMigrations = {
   // (future-proofing for an actual ranked contest — see rank_position above).
   leaderboard_visible: `ALTER TABLE settings ADD COLUMN leaderboard_visible INTEGER NOT NULL DEFAULT 0`,
   leaderboard_sort_mode: `ALTER TABLE settings ADD COLUMN leaderboard_sort_mode TEXT NOT NULL DEFAULT 'date'`,
+  // Playlist Kyle adds his favorite stream submissions to. Shown as a
+  // pinned footer player on the leaderboard page — deliberately independent
+  // of leaderboard_visible above, since the playlist is an ongoing thing,
+  // not tied to any one month's contest. Empty string = don't show it.
+  spotify_playlist_id: `ALTER TABLE settings ADD COLUMN spotify_playlist_id TEXT NOT NULL DEFAULT ''`,
 };
 for (const [column, sql] of Object.entries(settingsMigrations)) {
   if (!settingsColumns.includes(column)) db.exec(sql);
@@ -216,6 +221,7 @@ function updateSettings({
   countdownTargetAt,
   leaderboardVisible,
   leaderboardSortMode,
+  spotifyPlaylistId,
 }) {
   db.prepare(
     `UPDATE settings SET
@@ -226,7 +232,8 @@ function updateSettings({
        countdown_label = ?,
        countdown_target_at = ?,
        leaderboard_visible = ?,
-       leaderboard_sort_mode = ?
+       leaderboard_sort_mode = ?,
+       spotify_playlist_id = ?
      WHERE id = 1`
   ).run(
     saleNotificationEmails,
@@ -236,7 +243,8 @@ function updateSettings({
     countdownLabel,
     countdownTargetAt || null,
     leaderboardVisible ? 1 : 0,
-    leaderboardSortMode === 'rank' ? 'rank' : 'date'
+    leaderboardSortMode === 'rank' ? 'rank' : 'date',
+    spotifyPlaylistId || ''
   );
   return getSettings();
 }

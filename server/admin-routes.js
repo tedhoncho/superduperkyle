@@ -167,7 +167,22 @@ function settingsToJson(row) {
     countdownTargetAt: row.countdown_target_at,
     leaderboardVisible: !!row.leaderboard_visible,
     leaderboardSortMode: row.leaderboard_sort_mode,
+    spotifyPlaylistId: row.spotify_playlist_id || '',
   };
+}
+
+// Kyle/Ted will paste whatever Spotify gives them to copy — the normal share
+// link, the embed code's src URL, or (via the embed "Copy playlist link")
+// just the raw ID — rather than hunt for one specific format. Pull the
+// playlist ID out of any of those; returns '' for an intentionally-cleared
+// field, or null if something was entered but couldn't be understood.
+function extractSpotifyPlaylistId(input) {
+  const trimmed = (input || '').trim();
+  if (!trimmed) return '';
+  const urlMatch = trimmed.match(/open\.spotify\.com\/(?:embed\/)?playlist\/([A-Za-z0-9]+)/);
+  if (urlMatch) return urlMatch[1];
+  if (/^[A-Za-z0-9]{10,30}$/.test(trimmed)) return trimmed; // already just the bare ID
+  return null;
 }
 
 router.get('/settings', (req, res) => {
@@ -200,6 +215,15 @@ router.put('/settings', (req, res) => {
   const leaderboardSortMode =
     req.body.leaderboardSortMode !== undefined ? req.body.leaderboardSortMode : current.leaderboard_sort_mode;
 
+  let spotifyPlaylistId = current.spotify_playlist_id || '';
+  if (req.body.spotifyPlaylistLink !== undefined) {
+    const parsed = extractSpotifyPlaylistId(req.body.spotifyPlaylistLink);
+    if (parsed === null) {
+      return res.status(400).json({ error: "That doesn't look like a Spotify playlist link — paste the share link or embed link Spotify gives you." });
+    }
+    spotifyPlaylistId = parsed;
+  }
+
   if (countdownEnabled && !countdownTargetAt) {
     return res.status(400).json({ error: 'Set a target date/time before turning the countdown on.' });
   }
@@ -216,6 +240,7 @@ router.put('/settings', (req, res) => {
     countdownTargetAt: countdownTargetAt || null,
     leaderboardVisible,
     leaderboardSortMode,
+    spotifyPlaylistId,
   });
   res.json({ settings: settingsToJson(settings) });
 });
