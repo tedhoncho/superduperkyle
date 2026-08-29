@@ -170,6 +170,8 @@ function settingsToJson(row) {
     spotifyPlaylistId: row.spotify_playlist_id || '',
     leaderboardHeading: row.leaderboard_heading,
     leaderboardSubheading: row.leaderboard_subheading,
+    leaderboardThumbsEnabled: !!row.leaderboard_thumbs_enabled,
+    leaderboardThumbsLimitOne: !!row.leaderboard_thumbs_limit_one,
   };
 }
 
@@ -220,6 +222,14 @@ router.put('/settings', (req, res) => {
     req.body.leaderboardHeading !== undefined ? req.body.leaderboardHeading.trim() : current.leaderboard_heading;
   const leaderboardSubheading =
     req.body.leaderboardSubheading !== undefined ? req.body.leaderboardSubheading.trim() : current.leaderboard_subheading;
+  const leaderboardThumbsEnabled =
+    req.body.leaderboardThumbsEnabled !== undefined
+      ? req.body.leaderboardThumbsEnabled === true || req.body.leaderboardThumbsEnabled === 'true'
+      : !!current.leaderboard_thumbs_enabled;
+  const leaderboardThumbsLimitOne =
+    req.body.leaderboardThumbsLimitOne !== undefined
+      ? req.body.leaderboardThumbsLimitOne === true || req.body.leaderboardThumbsLimitOne === 'true'
+      : !!current.leaderboard_thumbs_limit_one;
 
   let spotifyPlaylistId = current.spotify_playlist_id || '';
   if (req.body.spotifyPlaylistLink !== undefined) {
@@ -249,6 +259,8 @@ router.put('/settings', (req, res) => {
     spotifyPlaylistId,
     leaderboardHeading,
     leaderboardSubheading,
+    leaderboardThumbsEnabled,
+    leaderboardThumbsLimitOne,
   });
   res.json({ settings: settingsToJson(settings) });
 });
@@ -267,6 +279,7 @@ function leaderboardEntryToJson(row) {
     link: row.link || '',
     isWinner: !!row.is_winner,
     rankPosition: row.rank_position,
+    thumbsCount: row.thumbs_count,
   };
 }
 

@@ -18,11 +18,53 @@ function renderClosed() {
   `;
 }
 
-function renderEntry(entry, rankNumber) {
+// --- Fan thumbs-up ---
+// Future-proofing feature (off by default — see settings.leaderboardThumbsEnabled).
+// Whether repeat voting is allowed is Ted's own call (settings.leaderboardThumbsLimitOne):
+// he plans to launch with it OFF — unlimited votes from the same browser, to
+// build buzz while the site is new and low-traffic — then turn it on later
+// once traffic is high enough that ballot-stuffing actually matters. When
+// it's on, "one vote per fan" is enforced the only way available without a
+// login system: remembering which entries this browser has already
+// thumbsed, in localStorage. Not fraud-proof (a different browser, or
+// clearing site data, resets it) — an accepted tradeoff either way for a
+// fun engagement number, not something anything else on the site depends on.
+const THUMBS_VOTED_KEY = 'sdk_leaderboard_thumbs_voted';
+
+// Set once per load() from settings.leaderboardThumbsLimitOne — read by the
+// delegated click handler below, which doesn't otherwise know which mode
+// the currently-rendered entries were built under.
+let thumbsLimitOneMode = false;
+
+function getVotedEntryIds() {
+  try {
+    const raw = localStorage.getItem(THUMBS_VOTED_KEY);
+    return raw ? new Set(JSON.parse(raw)) : new Set();
+  } catch (err) {
+    return new Set(); // private-mode/blocked storage — voting still works, just isn't remembered
+  }
+}
+
+function markEntryVoted(id) {
+  try {
+    const voted = getVotedEntryIds();
+    voted.add(id);
+    localStorage.setItem(THUMBS_VOTED_KEY, JSON.stringify([...voted]));
+  } catch (err) {
+    // Nothing to do — this vote still counted server-side, it just won't be
+    // remembered as "already voted" on a reload.
+  }
+}
+
+function renderEntry(entry, rankNumber, thumbsEnabled, votedIds, thumbsLimitOne) {
   const winnerBadge = entry.isWinner ? '<span class="winner-badge">🏆 Feature Winner</span>' : '';
   const rankLabel = rankNumber ? `<span class="entry-rank">#${rankNumber}</span>` : '';
   const linkHtml = entry.link
     ? `<a href="${entry.link}" class="entry-link" target="_blank" rel="noopener">Listen</a>`
+    : '';
+  const hasVoted = thumbsLimitOne && votedIds.has(entry.id);
+  const thumbsHtml = thumbsEnabled
+    ? `<button type="button" class="entry-thumbs${hasVoted ? ' is-voted' : ''}" data-entry-id="${entry.id}" ${hasVoted ? 'disabled' : ''} aria-label="${hasVoted ? 'You thumbed this up' : 'Thumbs up this pick'}">😊 <span class="entry-thumbs-count">${entry.thumbsCount || 0}</span></button>`
     : '';
 
   return `
@@ -34,11 +76,43 @@ function renderEntry(entry, rankNumber) {
       </div>
       <div class="entry-actions">
         ${winnerBadge}
+        ${thumbsHtml}
         ${linkHtml}
       </div>
     </div>
   `;
 }
+
+// Delegated once on the static container rather than re-bound on every
+// render — mainEl's innerHTML gets replaced wholesale each load(), but
+// mainEl itself never does.
+mainEl.addEventListener('click', async (e) => {
+  const btn = e.target.closest('.entry-thumbs');
+  if (!btn || btn.disabled) return;
+  const entryId = btn.dataset.entryId;
+  // Disabled during the request either way, so a fast double-click can't
+  // fire two requests — in unlimited mode this is just a brief debounce,
+  // not a permanent lock.
+  btn.disabled = true;
+  try {
+    const res = await fetch(`/api/leaderboard/${entryId}/thumbs`, { method: 'POST' });
+    if (!res.ok) throw new Error('vote request failed');
+    const data = await res.json();
+    btn.querySelector('.entry-thumbs-count').textContent = data.thumbsCount;
+    if (thumbsLimitOneMode) {
+      btn.classList.add('is-voted');
+      btn.setAttribute('aria-label', 'You thumbed this up');
+      markEntryVoted(entryId);
+      // Stays disabled — one vote per browser is the whole point of this mode.
+    } else {
+      btn.disabled = false; // unlimited voting — ready for the next click right away
+    }
+  } catch (err) {
+    // Network hiccup or the contest closed mid-click — let them try again
+    // rather than leaving the button permanently stuck.
+    btn.disabled = false;
+  }
+});
 
 // Escapes the admin-editable heading/subheading text before dropping it
 // into innerHTML, since it's free-form input from a form rather than a
@@ -49,7 +123,7 @@ function escapeHtml(str) {
   return div.innerHTML;
 }
 
-function renderEntries(sortMode, entries, heading, subheading) {
+function renderEntries(sortMode, entries, heading, subheading, thumbsEnabled, thumbsLimitOne) {
   const headingHtml = `<h1>${escapeHtml(heading)}</h1>${subheading ? `<p class="leaderboard-sub">${escapeHtml(subheading)}</p>` : ''}`;
 
   if (!entries.length) {
@@ -57,7 +131,10 @@ function renderEntries(sortMode, entries, heading, subheading) {
     return;
   }
 
-  const rows = entries.map((e, i) => renderEntry(e, sortMode === 'rank' ? i + 1 : null)).join('');
+  const votedIds = thumbsEnabled && thumbsLimitOne ? getVotedEntryIds() : new Set();
+  const rows = entries
+    .map((e, i) => renderEntry(e, sortMode === 'rank' ? i + 1 : null, thumbsEnabled, votedIds, thumbsLimitOne))
+    .join('');
   mainEl.innerHTML = `${headingHtml}<div class="leaderboard-list">${rows}</div>`;
 }
 
@@ -145,9 +222,10 @@ async function load() {
   try {
     const res = await fetch('/api/leaderboard');
     const data = await res.json();
+    thumbsLimitOneMode = !!data.thumbsLimitOne;
 
     if (data.visible) {
-      renderEntries(data.sortMode, data.entries, data.heading, data.subheading);
+      renderEntries(data.sortMode, data.entries, data.heading, data.subheading, data.thumbsEnabled, data.thumbsLimitOne);
     } else {
       renderClosed();
     }

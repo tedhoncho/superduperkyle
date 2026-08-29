@@ -455,6 +455,25 @@ body {
 }
 .entry-link:hover { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
 
+.entry-thumbs {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text);
+  background: #fff;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 5px 10px;
+  cursor: pointer;
+}
+.entry-thumbs:hover:not(:disabled) { border-color: var(--accent); }
+.entry-thumbs:disabled { cursor: default; }
+.entry-thumbs.is-voted { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
+.entry-thumbs-count { font-variant-numeric: tabular-nums; }
+
 @media (max-width: 560px) {
   .leaderboard-entry { flex-wrap: wrap; }
   .entry-actions { align-items: flex-start; flex-direction: row; flex-wrap: wrap; }

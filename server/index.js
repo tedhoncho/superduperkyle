@@ -125,13 +125,17 @@ app.get('/api/leaderboard', (req, res) => {
   const settings = db.getSettings();
   const visible = !!settings.leaderboard_visible;
   const sortMode = settings.leaderboard_sort_mode === 'rank' ? 'rank' : 'date';
+  const thumbsEnabled = !!settings.leaderboard_thumbs_enabled;
+  const thumbsLimitOne = !!settings.leaderboard_thumbs_limit_one;
   const entries = visible
     ? db.listLeaderboardEntriesPublic(sortMode).map((row) => ({
+        id: row.id,
         artist: row.artist,
         songTitle: row.song_title,
         streamDate: row.stream_date,
         link: row.link || '',
         isWinner: !!row.is_winner,
+        thumbsCount: row.thumbs_count,
       }))
     : [];
   res.json({
@@ -141,7 +145,25 @@ app.get('/api/leaderboard', (req, res) => {
     spotifyPlaylistId: settings.spotify_playlist_id || '',
     heading: settings.leaderboard_heading || 'Feature Contest Leaderboard',
     subheading: settings.leaderboard_subheading || '',
+    thumbsEnabled,
+    thumbsLimitOne,
   });
+});
+
+// Fan thumbs-up on a single leaderboard entry. No fan accounts exist on this
+// site, so there's no server-side per-fan vote limit here — the public page
+// enforces "once per browser" itself via localStorage. Gated the same way
+// the entries above are: only works while the contest is both visible and
+// thumbs are turned on, so the endpoint can't be used to prop up a number
+// for a contest that's already over or wasn't opened up for voting.
+app.post('/api/leaderboard/:id/thumbs', (req, res) => {
+  const settings = db.getSettings();
+  if (!settings.leaderboard_visible || !settings.leaderboard_thumbs_enabled) {
+    return res.status(404).json({ error: 'not_available' });
+  }
+  const entry = db.incrementLeaderboardThumbs(req.params.id);
+  if (!entry) return res.status(404).json({ error: 'not_found' });
+  res.json({ thumbsCount: entry.thumbs_count });
 });
 
 // Streams a short preview clip (not the full purchasable file).

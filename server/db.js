@@ -133,9 +133,29 @@ const settingsMigrations = {
   // Ted actually edits it.
   leaderboard_heading: `ALTER TABLE settings ADD COLUMN leaderboard_heading TEXT NOT NULL DEFAULT 'Feature Contest Leaderboard'`,
   leaderboard_subheading: `ALTER TABLE settings ADD COLUMN leaderboard_subheading TEXT NOT NULL DEFAULT 'Every stream, Kyle picks his favorite submissions — these are added to the pool for the end-of-month feature.'`,
+  // Future-proofing, same spirit as leaderboard_sort_mode above: fan thumbs
+  // are fully wired up but stay off (0) until Ted turns them on for a
+  // contest he actually wants them live for.
+  leaderboard_thumbs_enabled: `ALTER TABLE settings ADD COLUMN leaderboard_thumbs_enabled INTEGER NOT NULL DEFAULT 0`,
+  // Separate from the toggle above on purpose: Ted's plan is to launch
+  // thumbs with voting wide open (repeat clicks welcome, to get traffic
+  // going while the site is new/low-traffic) and only turn on the
+  // one-vote-per-browser limit later once there's enough traffic that
+  // ballot-stuffing actually matters. Off = unlimited voting.
+  leaderboard_thumbs_limit_one: `ALTER TABLE settings ADD COLUMN leaderboard_thumbs_limit_one INTEGER NOT NULL DEFAULT 0`,
 };
 for (const [column, sql] of Object.entries(settingsMigrations)) {
   if (!settingsColumns.includes(column)) db.exec(sql);
+}
+
+// --- Migration: leaderboard_entries.thumbs_count (fan thumbs-up, gated by
+// settings.leaderboard_thumbs_enabled). The leaderboard_entries table above
+// already shipped with real rows before this column existed, so — same
+// PRAGMA-check pattern as the other migrations here — check first rather
+// than assuming a fresh table. ---
+const leaderboardEntryColumns = db.prepare(`PRAGMA table_info(leaderboard_entries)`).all().map((c) => c.name);
+if (!leaderboardEntryColumns.includes('thumbs_count')) {
+  db.exec(`ALTER TABLE leaderboard_entries ADD COLUMN thumbs_count INTEGER NOT NULL DEFAULT 0`);
 }
 
 // --- Migration: projects.display_order (manual control over which release
@@ -232,6 +252,8 @@ function updateSettings({
   spotifyPlaylistId,
   leaderboardHeading,
   leaderboardSubheading,
+  leaderboardThumbsEnabled,
+  leaderboardThumbsLimitOne,
 }) {
   db.prepare(
     `UPDATE settings SET
@@ -245,7 +267,9 @@ function updateSettings({
        leaderboard_sort_mode = ?,
        spotify_playlist_id = ?,
        leaderboard_heading = ?,
-       leaderboard_subheading = ?
+       leaderboard_subheading = ?,
+       leaderboard_thumbs_enabled = ?,
+       leaderboard_thumbs_limit_one = ?
      WHERE id = 1`
   ).run(
     saleNotificationEmails,
@@ -258,7 +282,9 @@ function updateSettings({
     leaderboardSortMode === 'rank' ? 'rank' : 'date',
     spotifyPlaylistId || '',
     leaderboardHeading,
-    leaderboardSubheading
+    leaderboardSubheading,
+    leaderboardThumbsEnabled ? 1 : 0,
+    leaderboardThumbsLimitOne ? 1 : 0
   );
   return getSettings();
 }
@@ -506,6 +532,21 @@ function clearLeaderboardWinner() {
   db.prepare(`UPDATE leaderboard_entries SET is_winner = 0 WHERE is_winner = 1`).run();
 }
 
+// Fan thumbs-up. A single atomic UPDATE (no read-then-write) so two fans
+// clicking at the same instant can't stomp on each other's count. Only
+// meant to be called once the caller has already checked
+// settings.leaderboard_visible and settings.leaderboard_thumbs_enabled —
+// this function itself doesn't know about either. There's no per-fan vote
+// limit on the server (no login system to hang one on); the public page
+// enforces "once per browser" client-side via localStorage, which is a
+// nice-to-have, not fraud-proofing — fine for a fun engagement number,
+// not something anything else depends on.
+function incrementLeaderboardThumbs(id) {
+  const result = db.prepare(`UPDATE leaderboard_entries SET thumbs_count = thumbs_count + 1 WHERE id = ?`).run(id);
+  if (result.changes === 0) return null;
+  return getLeaderboardEntryRow(id);
+}
+
 module.exports = {
   db,
   listProjects,
@@ -541,4 +582,5 @@ module.exports = {
   swapLeaderboardRank,
   setLeaderboardWinner,
   clearLeaderboardWinner,
+  incrementLeaderboardThumbs,
 };

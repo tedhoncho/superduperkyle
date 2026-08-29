@@ -630,6 +630,8 @@ async function loadLeaderboardSettings() {
   document.getElementById('field-spotify-playlist').value = settings.spotifyPlaylistId || '';
   document.getElementById('field-leaderboard-heading').value = settings.leaderboardHeading || '';
   document.getElementById('field-leaderboard-subheading').value = settings.leaderboardSubheading || '';
+  document.getElementById('field-leaderboard-thumbs-enabled').checked = !!settings.leaderboardThumbsEnabled;
+  document.getElementById('field-leaderboard-thumbs-limit-one').checked = !!settings.leaderboardThumbsLimitOne;
 }
 
 document.getElementById('btn-view-leaderboard').addEventListener('click', () => {
@@ -657,6 +659,8 @@ document.getElementById('btn-save-leaderboard-settings').addEventListener('click
       spotifyPlaylistLink: document.getElementById('field-spotify-playlist').value.trim(),
       leaderboardHeading: document.getElementById('field-leaderboard-heading').value.trim(),
       leaderboardSubheading: document.getElementById('field-leaderboard-subheading').value.trim(),
+      leaderboardThumbsEnabled: document.getElementById('field-leaderboard-thumbs-enabled').checked,
+      leaderboardThumbsLimitOne: document.getElementById('field-leaderboard-thumbs-limit-one').checked,
     });
     successEl.classList.remove('hidden');
   } catch (err) {
@@ -694,7 +698,7 @@ function renderLeaderboardList(entries) {
       </div>
       <div class="admin-project-info">
         <h3>${entry.artist} — ${entry.songTitle}${entry.isWinner ? ' <span class="admin-featured-badge">🏆 Winner</span>' : ''}</h3>
-        <p>Stream date: ${entry.streamDate}${entry.link ? ' · has a link' : ''}</p>
+        <p>Stream date: ${entry.streamDate}${entry.link ? ' · has a link' : ''} · 😊 ${entry.thumbsCount}</p>
       </div>
       <div class="admin-project-row-actions">
         <button class="admin-btn-ghost btn-winner">${entry.isWinner ? 'Remove Winner' : 'Mark Winner'}</button>
