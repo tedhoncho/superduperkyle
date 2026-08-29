@@ -36,6 +36,7 @@ function showView(name) {
   document.getElementById('view-sales').classList.toggle('hidden', name !== 'sales');
   document.getElementById('view-notifications').classList.toggle('hidden', name !== 'notifications');
   document.getElementById('view-site').classList.toggle('hidden', name !== 'site');
+  document.getElementById('view-leaderboard').classList.toggle('hidden', name !== 'leaderboard');
 }
 
 // ---------- state ----------
@@ -612,6 +613,168 @@ document.getElementById('btn-confirm-track').addEventListener('click', async () 
   } finally {
     btn.disabled = false;
     btn.textContent = 'Add Song';
+  }
+});
+
+// ---------- leaderboard (Feature Contest) ----------
+
+let editingLeaderboardId = null; // null while adding a brand-new entry
+
+async function loadLeaderboardSettings() {
+  document.getElementById('leaderboard-settings-error').classList.add('hidden');
+  document.getElementById('leaderboard-settings-success').classList.add('hidden');
+  const { settings } = await api('GET', '/api/admin/settings');
+  document.getElementById('field-leaderboard-visible').checked = !!settings.leaderboardVisible;
+  const mode = settings.leaderboardSortMode === 'rank' ? 'rank' : 'date';
+  document.querySelector(`input[name="leaderboardSortMode"][value="${mode}"]`).checked = true;
+}
+
+document.getElementById('btn-view-leaderboard').addEventListener('click', () => {
+  showView('leaderboard');
+  loadLeaderboardSettings();
+  loadLeaderboardEntries();
+  resetLeaderboardForm();
+});
+document.getElementById('btn-leaderboard-back').addEventListener('click', () => showView('dashboard'));
+
+document.getElementById('btn-save-leaderboard-settings').addEventListener('click', async () => {
+  const errorEl = document.getElementById('leaderboard-settings-error');
+  const successEl = document.getElementById('leaderboard-settings-success');
+  errorEl.classList.add('hidden');
+  successEl.classList.add('hidden');
+
+  const btn = document.getElementById('btn-save-leaderboard-settings');
+  btn.disabled = true;
+  btn.textContent = 'Saving…';
+
+  try {
+    await api('PUT', '/api/admin/settings', {
+      leaderboardVisible: document.getElementById('field-leaderboard-visible').checked,
+      leaderboardSortMode: document.querySelector('input[name="leaderboardSortMode"]:checked').value,
+    });
+    successEl.classList.remove('hidden');
+  } catch (err) {
+    errorEl.textContent = err.message;
+    errorEl.classList.remove('hidden');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Save';
+  }
+});
+
+async function loadLeaderboardEntries() {
+  const listEl = document.getElementById('leaderboard-list');
+  listEl.innerHTML = '<p class="admin-loading">Loading…</p>';
+  const { entries } = await api('GET', '/api/admin/leaderboard');
+  renderLeaderboardList(entries);
+}
+
+function renderLeaderboardList(entries) {
+  const listEl = document.getElementById('leaderboard-list');
+
+  if (!entries.length) {
+    listEl.innerHTML = '<p class="admin-empty">No picks yet — add one above after the next stream.</p>';
+    return;
+  }
+
+  listEl.innerHTML = '';
+  entries.forEach((entry, index) => {
+    const row = document.createElement('div');
+    row.className = 'admin-project-row';
+    row.innerHTML = `
+      <div class="admin-track-order" title="Manual rank order — only used on the site when Public page order is set to Rank">
+        <button class="btn-up" ${index === 0 ? 'disabled' : ''}>&and;</button>
+        <button class="btn-down" ${index === entries.length - 1 ? 'disabled' : ''}>&or;</button>
+      </div>
+      <div class="admin-project-info">
+        <h3>${entry.artist} — ${entry.songTitle}${entry.isWinner ? ' <span class="admin-featured-badge">🏆 Winner</span>' : ''}</h3>
+        <p>Stream date: ${entry.streamDate}${entry.link ? ' · has a link' : ''}</p>
+      </div>
+      <div class="admin-project-row-actions">
+        <button class="admin-btn-ghost btn-winner">${entry.isWinner ? 'Remove Winner' : 'Mark Winner'}</button>
+        <button class="admin-btn-ghost btn-edit">Edit</button>
+        <button class="admin-btn-ghost btn-delete">Delete</button>
+      </div>
+    `;
+    row.querySelector('.btn-up').addEventListener('click', () => reorderLeaderboardEntry(entry.id, 'up'));
+    row.querySelector('.btn-down').addEventListener('click', () => reorderLeaderboardEntry(entry.id, 'down'));
+    row.querySelector('.btn-winner').addEventListener('click', () => toggleLeaderboardWinner(entry));
+    row.querySelector('.btn-edit').addEventListener('click', () => openLeaderboardEditForm(entry));
+    row.querySelector('.btn-delete').addEventListener('click', () => deleteLeaderboardEntry(entry));
+    listEl.appendChild(row);
+  });
+}
+
+async function reorderLeaderboardEntry(id, direction) {
+  const { entries } = await api('POST', `/api/admin/leaderboard/${id}/reorder`, { direction });
+  renderLeaderboardList(entries);
+}
+
+async function toggleLeaderboardWinner(entry) {
+  const body = entry.isWinner ? { clear: true } : {};
+  const { entries } = await api('POST', `/api/admin/leaderboard/${entry.id}/winner`, body);
+  renderLeaderboardList(entries);
+}
+
+async function deleteLeaderboardEntry(entry) {
+  if (!confirm(`Delete the pick "${entry.artist} — ${entry.songTitle}"? This can't be undone.`)) return;
+  await api('DELETE', `/api/admin/leaderboard/${entry.id}`);
+  loadLeaderboardEntries();
+}
+
+function resetLeaderboardForm() {
+  editingLeaderboardId = null;
+  document.getElementById('field-lb-artist').value = '';
+  document.getElementById('field-lb-song').value = '';
+  document.getElementById('field-lb-date').value = '';
+  document.getElementById('field-lb-link').value = '';
+  document.getElementById('leaderboard-entry-error').classList.add('hidden');
+  document.getElementById('btn-save-lb-entry').textContent = 'Add to leaderboard';
+  document.getElementById('btn-cancel-lb-entry').classList.add('hidden');
+}
+
+function openLeaderboardEditForm(entry) {
+  editingLeaderboardId = entry.id;
+  document.getElementById('field-lb-artist').value = entry.artist;
+  document.getElementById('field-lb-song').value = entry.songTitle;
+  document.getElementById('field-lb-date').value = entry.streamDate;
+  document.getElementById('field-lb-link').value = entry.link || '';
+  document.getElementById('btn-save-lb-entry').textContent = 'Save changes';
+  document.getElementById('btn-cancel-lb-entry').classList.remove('hidden');
+  document.getElementById('field-lb-artist').focus();
+}
+
+document.getElementById('btn-cancel-lb-entry').addEventListener('click', resetLeaderboardForm);
+
+document.getElementById('btn-save-lb-entry').addEventListener('click', async () => {
+  const errorEl = document.getElementById('leaderboard-entry-error');
+  errorEl.classList.add('hidden');
+
+  const payload = {
+    artist: document.getElementById('field-lb-artist').value.trim(),
+    songTitle: document.getElementById('field-lb-song').value.trim(),
+    streamDate: document.getElementById('field-lb-date').value,
+    link: document.getElementById('field-lb-link').value.trim(),
+  };
+
+  const btn = document.getElementById('btn-save-lb-entry');
+  btn.disabled = true;
+  btn.textContent = editingLeaderboardId ? 'Saving…' : 'Adding…';
+
+  try {
+    if (editingLeaderboardId) {
+      await api('PUT', `/api/admin/leaderboard/${editingLeaderboardId}`, payload);
+    } else {
+      await api('POST', '/api/admin/leaderboard', payload);
+    }
+    resetLeaderboardForm();
+    loadLeaderboardEntries();
+  } catch (err) {
+    errorEl.textContent = err.message;
+    errorEl.classList.remove('hidden');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = editingLeaderboardId ? 'Save changes' : 'Add to leaderboard';
   }
 });
 

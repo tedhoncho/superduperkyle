@@ -26,6 +26,7 @@
       <h1>Your Music</h1>
       <div class="admin-header-actions">
         <button id="btn-view-site" class="admin-btn-ghost">Site</button>
+        <button id="btn-view-leaderboard" class="admin-btn-ghost">Leaderboard</button>
         <button id="btn-view-notifications" class="admin-btn-ghost">Notifications</button>
         <button id="btn-view-sales" class="admin-btn-ghost">Sales</button>
         <button id="btn-new-project" class="admin-btn-primary">+ New Song or Album</button>
@@ -73,6 +74,72 @@
       <p id="site-error" class="admin-error hidden"></p>
       <p id="site-success" class="admin-hint hidden" style="color: var(--accent);">Saved.</p>
       <button id="btn-save-site" class="admin-btn-primary">Save</button>
+    </section>
+  </div>
+
+  <!-- ===================== LEADERBOARD (Feature Contest) ===================== -->
+  <div id="view-leaderboard" class="admin-shell hidden">
+    <header class="admin-header">
+      <button id="btn-leaderboard-back" class="admin-btn-ghost">&larr; Back to Your Music</button>
+    </header>
+
+    <section class="admin-panel">
+      <h2>Feature Contest leaderboard</h2>
+      <p class="admin-hint">Hand-entered picks from Kyle's Twitch stream. Nothing here is pulled automatically from Nero.fan or Throne — add an entry after each stream.</p>
+
+      <label class="admin-checkbox">
+        <input type="checkbox" id="field-leaderboard-visible" />
+        Show the Leaderboard tab on the site
+      </label>
+      <p class="admin-hint" style="margin: -4px 0 14px;">Turn this off once Kyle picks the winner (or the raffle happens) — the nav link and the page both go away, nothing stays reachable by a direct link.</p>
+
+      <fieldset class="admin-pricing-choice">
+        <legend>Public page order</legend>
+        <label class="admin-radio">
+          <input type="radio" name="leaderboardSortMode" value="date" checked />
+          Stream date (today's contest — newest pick first)
+        </label>
+        <label class="admin-radio">
+          <input type="radio" name="leaderboardSortMode" value="rank" />
+          Rank (for a future ranked contest — uses the order set below)
+        </label>
+      </fieldset>
+
+      <p id="leaderboard-settings-error" class="admin-error hidden"></p>
+      <p id="leaderboard-settings-success" class="admin-hint hidden" style="color: var(--accent);">Saved.</p>
+      <button id="btn-save-leaderboard-settings" class="admin-btn-primary">Save</button>
+    </section>
+
+    <section class="admin-panel" style="margin-top: 20px;">
+      <h2>Add a pick</h2>
+      <div class="admin-editor-grid" style="grid-template-columns: 1fr 1fr;">
+        <label class="admin-field">
+          Artist
+          <input type="text" id="field-lb-artist" placeholder="e.g. Nate Fox" />
+        </label>
+        <label class="admin-field">
+          Song title
+          <input type="text" id="field-lb-song" placeholder="e.g. Open Road" />
+        </label>
+        <label class="admin-field">
+          Stream date
+          <input type="date" id="field-lb-date" />
+        </label>
+        <label class="admin-field">
+          Link (optional)
+          <input type="text" id="field-lb-link" placeholder="Link to the submission or clip" />
+        </label>
+      </div>
+      <p id="leaderboard-entry-error" class="admin-error hidden"></p>
+      <button id="btn-save-lb-entry" class="admin-btn-primary">Add to leaderboard</button>
+      <button id="btn-cancel-lb-entry" class="admin-btn-ghost hidden">Cancel edit</button>
+    </section>
+
+    <section class="admin-panel" style="margin-top: 20px;">
+      <h2>Entries</h2>
+      <div id="leaderboard-list" class="admin-project-list">
+        <p class="admin-loading">Loading…</p>
+      </div>
     </section>
   </div>
 

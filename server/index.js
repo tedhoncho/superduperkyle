@@ -110,7 +110,30 @@ app.get('/api/site-settings', (req, res) => {
     countdown: countdownLive
       ? { label: settings.countdown_label || '', targetAt: new Date(targetAt).toISOString() }
       : null,
+    leaderboardVisible: !!settings.leaderboard_visible,
   });
+});
+
+// Feature Contest leaderboard — hand-curated picks from Kyle's Twitch stream
+// (see the admin "Leaderboard" tab). Deliberately a hard 404, not just an
+// empty list, when Ted has the tab switched off: the nav link disappears at
+// the same time (see /api/site-settings above), so someone with the page
+// bookmarked or linked from an old post shouldn't see any contest data
+// either — it should look like the page genuinely isn't there right now.
+app.get('/api/leaderboard', (req, res) => {
+  const settings = db.getSettings();
+  if (!settings.leaderboard_visible) {
+    return res.status(404).json({ error: 'not_visible' });
+  }
+  const sortMode = settings.leaderboard_sort_mode === 'rank' ? 'rank' : 'date';
+  const entries = db.listLeaderboardEntriesPublic(sortMode).map((row) => ({
+    artist: row.artist,
+    songTitle: row.song_title,
+    streamDate: row.stream_date,
+    link: row.link || '',
+    isWinner: !!row.is_winner,
+  }));
+  res.json({ sortMode, entries });
 });
 
 // Streams a short preview clip (not the full purchasable file).

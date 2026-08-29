@@ -93,6 +93,9 @@ async function loadSiteSettings() {
     } else {
       stopCountdown();
     }
+
+    const leaderboardLink = document.getElementById('nav-leaderboard');
+    if (leaderboardLink) leaderboardLink.classList.toggle('hidden', !data.leaderboardVisible);
   } catch (err) {
     // Non-critical — the storefront (catalog, checkout) works fine without
     // this, so a failure here shouldn't block or error out the page.

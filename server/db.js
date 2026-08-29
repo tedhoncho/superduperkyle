@@ -73,6 +73,23 @@ CREATE TABLE IF NOT EXISTS download_tokens (
 
 CREATE INDEX IF NOT EXISTS idx_tokens_order ON download_tokens(order_id);
 
+-- Feature Contest leaderboard: picks Kyle makes live on his Twitch stream
+-- from fan submissions, added by hand after each stream. rank_position is a
+-- manual up/down order (same idea as projects.display_order) kept ready for
+-- a future actual-ranking contest — today's leaderboard sorts by stream_date
+-- instead (see settings.leaderboard_sort_mode), so this column just sits
+-- populated and unused until that switch gets flipped.
+CREATE TABLE IF NOT EXISTS leaderboard_entries (
+  id TEXT PRIMARY KEY,
+  artist TEXT NOT NULL,
+  song_title TEXT NOT NULL,
+  stream_date TEXT NOT NULL,       -- 'YYYY-MM-DD', the date this was picked on stream
+  link TEXT,                       -- optional — only shown publicly when set
+  is_winner INTEGER NOT NULL DEFAULT 0,  -- 0/1 — only one row should have this set; see setLeaderboardWinner
+  rank_position INTEGER NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
 -- Single-row table for admin-editable settings (notification recipients,
 -- the fan-facing confirmation message). Deliberately separate from secrets
 -- like RESEND_API_KEY/STRIPE keys, which stay as Railway env vars — those
@@ -96,6 +113,13 @@ const settingsMigrations = {
   countdown_enabled: `ALTER TABLE settings ADD COLUMN countdown_enabled INTEGER NOT NULL DEFAULT 0`,
   countdown_label: `ALTER TABLE settings ADD COLUMN countdown_label TEXT NOT NULL DEFAULT ''`,
   countdown_target_at: `ALTER TABLE settings ADD COLUMN countdown_target_at TEXT`,
+  // Feature Contest leaderboard tab. leaderboard_visible is the on/off switch
+  // Ted flips himself once Kyle picks a winner — deliberately manual, not
+  // date-driven, since raffles/review backlogs can slip the real end date.
+  // leaderboard_sort_mode is 'date' (default, today's contest) or 'rank'
+  // (future-proofing for an actual ranked contest — see rank_position above).
+  leaderboard_visible: `ALTER TABLE settings ADD COLUMN leaderboard_visible INTEGER NOT NULL DEFAULT 0`,
+  leaderboard_sort_mode: `ALTER TABLE settings ADD COLUMN leaderboard_sort_mode TEXT NOT NULL DEFAULT 'date'`,
 };
 for (const [column, sql] of Object.entries(settingsMigrations)) {
   if (!settingsColumns.includes(column)) db.exec(sql);
@@ -190,6 +214,8 @@ function updateSettings({
   countdownEnabled,
   countdownLabel,
   countdownTargetAt,
+  leaderboardVisible,
+  leaderboardSortMode,
 }) {
   db.prepare(
     `UPDATE settings SET
@@ -198,7 +224,9 @@ function updateSettings({
        header_tagline = ?,
        countdown_enabled = ?,
        countdown_label = ?,
-       countdown_target_at = ?
+       countdown_target_at = ?,
+       leaderboard_visible = ?,
+       leaderboard_sort_mode = ?
      WHERE id = 1`
   ).run(
     saleNotificationEmails,
@@ -206,7 +234,9 @@ function updateSettings({
     headerTagline,
     countdownEnabled ? 1 : 0,
     countdownLabel,
-    countdownTargetAt || null
+    countdownTargetAt || null,
+    leaderboardVisible ? 1 : 0,
+    leaderboardSortMode === 'rank' ? 'rank' : 'date'
   );
   return getSettings();
 }
@@ -374,6 +404,86 @@ function swapTrackOrder(trackIdA, trackIdB) {
   tx();
 }
 
+// --- Feature Contest leaderboard ---
+// Same shape as the projects/tracks patterns above: a manual rank_position
+// with a swap-based reorder, plus a separate stream_date sort for today's
+// actual (chronological) contest. Both orderings are always kept in sync —
+// which one the public page uses is purely a settings.leaderboard_sort_mode
+// read at request time, not a data difference.
+
+// Admin editing view: always by rank_position, so the up/down controls make
+// sense regardless of which sort mode is currently live on the public page.
+function listLeaderboardEntriesForAdmin() {
+  return db.prepare(`SELECT * FROM leaderboard_entries ORDER BY rank_position ASC`).all();
+}
+
+// Public view: sortMode is whatever settings.leaderboard_sort_mode currently
+// is — 'date' (today's contest, newest stream first) or 'rank' (future use).
+function listLeaderboardEntriesPublic(sortMode) {
+  const order = sortMode === 'rank' ? 'rank_position ASC' : 'stream_date DESC, created_at DESC';
+  return db.prepare(`SELECT * FROM leaderboard_entries ORDER BY ${order}`).all();
+}
+
+function getLeaderboardEntryRow(id) {
+  return db.prepare(`SELECT * FROM leaderboard_entries WHERE id = ?`).get(id) || null;
+}
+
+// New entries default to the bottom of the rank order — same idea as
+// nextProjectDisplayOrder, just counting up instead of down since there's no
+// "featured" slot here to protect.
+function nextLeaderboardRankPosition() {
+  const row = db.prepare(`SELECT MAX(rank_position) as maxOrder FROM leaderboard_entries`).get();
+  return (row.maxOrder ?? 0) + 1;
+}
+
+function insertLeaderboardEntry({ id, artist, songTitle, streamDate, link }) {
+  db.prepare(
+    `INSERT INTO leaderboard_entries (id, artist, song_title, stream_date, link, rank_position)
+     VALUES (?, ?, ?, ?, ?, ?)`
+  ).run(id, artist, songTitle, streamDate, link || null, nextLeaderboardRankPosition());
+  return getLeaderboardEntryRow(id);
+}
+
+function updateLeaderboardEntry(id, { artist, songTitle, streamDate, link }) {
+  const current = getLeaderboardEntryRow(id);
+  if (!current) return null;
+  db.prepare(
+    `UPDATE leaderboard_entries SET artist = ?, song_title = ?, stream_date = ?, link = ? WHERE id = ?`
+  ).run(artist, songTitle, streamDate, link || null, id);
+  return getLeaderboardEntryRow(id);
+}
+
+function deleteLeaderboardEntry(id) {
+  db.prepare(`DELETE FROM leaderboard_entries WHERE id = ?`).run(id);
+}
+
+function swapLeaderboardRank(idA, idB) {
+  const a = getLeaderboardEntryRow(idA);
+  const b = getLeaderboardEntryRow(idB);
+  if (!a || !b) return;
+  const tx = db.transaction(() => {
+    db.prepare(`UPDATE leaderboard_entries SET rank_position = ? WHERE id = ?`).run(b.rank_position, a.id);
+    db.prepare(`UPDATE leaderboard_entries SET rank_position = ? WHERE id = ?`).run(a.rank_position, b.id);
+  });
+  tx();
+}
+
+// Only one entry is ever "the" Feature Winner — clear any existing badge
+// before setting the new one so the public page never has to reason about
+// (or accidentally render) more than one at a time.
+function setLeaderboardWinner(id) {
+  const tx = db.transaction(() => {
+    db.prepare(`UPDATE leaderboard_entries SET is_winner = 0 WHERE is_winner = 1`).run();
+    db.prepare(`UPDATE leaderboard_entries SET is_winner = 1 WHERE id = ?`).run(id);
+  });
+  tx();
+  return getLeaderboardEntryRow(id);
+}
+
+function clearLeaderboardWinner() {
+  db.prepare(`UPDATE leaderboard_entries SET is_winner = 0 WHERE is_winner = 1`).run();
+}
+
 module.exports = {
   db,
   listProjects,
@@ -400,4 +510,13 @@ module.exports = {
   getTokensForOrder,
   getToken,
   decrementTokenUse,
+  listLeaderboardEntriesForAdmin,
+  listLeaderboardEntriesPublic,
+  getLeaderboardEntryRow,
+  insertLeaderboardEntry,
+  updateLeaderboardEntry,
+  deleteLeaderboardEntry,
+  swapLeaderboardRank,
+  setLeaderboardWinner,
+  clearLeaderboardWinner,
 };

@@ -165,6 +165,8 @@ function settingsToJson(row) {
     // Stored in SQLite as an ISO string (UTC) — passed straight through so the
     // admin form and public storefront both just deal in ISO/epoch time.
     countdownTargetAt: row.countdown_target_at,
+    leaderboardVisible: !!row.leaderboard_visible,
+    leaderboardSortMode: row.leaderboard_sort_mode,
   };
 }
 
@@ -191,6 +193,12 @@ router.put('/settings', (req, res) => {
       : !!current.countdown_enabled;
   const countdownTargetAt =
     req.body.countdownTargetAt !== undefined ? (req.body.countdownTargetAt || '').trim() : current.countdown_target_at || '';
+  const leaderboardVisible =
+    req.body.leaderboardVisible !== undefined
+      ? req.body.leaderboardVisible === true || req.body.leaderboardVisible === 'true'
+      : !!current.leaderboard_visible;
+  const leaderboardSortMode =
+    req.body.leaderboardSortMode !== undefined ? req.body.leaderboardSortMode : current.leaderboard_sort_mode;
 
   if (countdownEnabled && !countdownTargetAt) {
     return res.status(400).json({ error: 'Set a target date/time before turning the countdown on.' });
@@ -206,8 +214,103 @@ router.put('/settings', (req, res) => {
     countdownEnabled,
     countdownLabel,
     countdownTargetAt: countdownTargetAt || null,
+    leaderboardVisible,
+    leaderboardSortMode,
   });
   res.json({ settings: settingsToJson(settings) });
+});
+
+// --- Feature Contest leaderboard ---
+// Manual, hand-curated list — Ted/Kyle add one entry per stream pick. No
+// external data source (Nero.fan/Throne aren't wired up here), matching how
+// everything else on this site already works.
+
+function leaderboardEntryToJson(row) {
+  return {
+    id: row.id,
+    artist: row.artist,
+    songTitle: row.song_title,
+    streamDate: row.stream_date,
+    link: row.link || '',
+    isWinner: !!row.is_winner,
+    rankPosition: row.rank_position,
+  };
+}
+
+router.get('/leaderboard', (req, res) => {
+  res.json({ entries: db.listLeaderboardEntriesForAdmin().map(leaderboardEntryToJson) });
+});
+
+router.post('/leaderboard', (req, res) => {
+  const artist = (req.body.artist || '').trim();
+  const songTitle = (req.body.songTitle || '').trim();
+  const streamDate = (req.body.streamDate || '').trim();
+  const link = (req.body.link || '').trim();
+
+  if (!artist) return res.status(400).json({ error: 'Give it an artist name.' });
+  if (!songTitle) return res.status(400).json({ error: 'Give it a song title.' });
+  if (!streamDate || Number.isNaN(Date.parse(streamDate))) {
+    return res.status(400).json({ error: 'Pick the stream date this was reviewed on.' });
+  }
+
+  const entry = db.insertLeaderboardEntry({ id: slugId(`${artist}-${songTitle}`), artist, songTitle, streamDate, link });
+  res.json({ entry: leaderboardEntryToJson(entry) });
+});
+
+router.put('/leaderboard/:id', (req, res) => {
+  const existing = db.getLeaderboardEntryRow(req.params.id);
+  if (!existing) return res.status(404).json({ error: 'Entry not found.' });
+
+  const artist = (req.body.artist || '').trim();
+  const songTitle = (req.body.songTitle || '').trim();
+  const streamDate = (req.body.streamDate || '').trim();
+  const link = (req.body.link || '').trim();
+
+  if (!artist) return res.status(400).json({ error: 'Give it an artist name.' });
+  if (!songTitle) return res.status(400).json({ error: 'Give it a song title.' });
+  if (!streamDate || Number.isNaN(Date.parse(streamDate))) {
+    return res.status(400).json({ error: 'Pick the stream date this was reviewed on.' });
+  }
+
+  const entry = db.updateLeaderboardEntry(req.params.id, { artist, songTitle, streamDate, link });
+  res.json({ entry: leaderboardEntryToJson(entry) });
+});
+
+router.delete('/leaderboard/:id', (req, res) => {
+  const existing = db.getLeaderboardEntryRow(req.params.id);
+  if (!existing) return res.status(404).json({ error: 'Entry not found.' });
+  db.deleteLeaderboardEntry(req.params.id);
+  res.json({ ok: true });
+});
+
+router.post('/leaderboard/:id/reorder', (req, res) => {
+  const entry = db.getLeaderboardEntryRow(req.params.id);
+  if (!entry) return res.status(404).json({ error: 'Entry not found.' });
+
+  const siblings = db.listLeaderboardEntriesForAdmin();
+  const index = siblings.findIndex((e) => e.id === entry.id);
+  const targetIndex = req.body.direction === 'up' ? index - 1 : index + 1;
+
+  if (targetIndex < 0 || targetIndex >= siblings.length) {
+    return res.json({ entries: siblings.map(leaderboardEntryToJson) }); // already at the end, no-op
+  }
+
+  db.swapLeaderboardRank(entry.id, siblings[targetIndex].id);
+  res.json({ entries: db.listLeaderboardEntriesForAdmin().map(leaderboardEntryToJson) });
+});
+
+// Marking a winner clears any previous one (see db.setLeaderboardWinner) —
+// only ever one Feature Winner badge live at a time. Posting the same id
+// again, or a dedicated "clear" flag, removes the badge entirely.
+router.post('/leaderboard/:id/winner', (req, res) => {
+  if (req.body.clear) {
+    db.clearLeaderboardWinner();
+    return res.json({ entries: db.listLeaderboardEntriesForAdmin().map(leaderboardEntryToJson) });
+  }
+  const entry = db.getLeaderboardEntryRow(req.params.id);
+  if (!entry) return res.status(404).json({ error: 'Entry not found.' });
+  db.setLeaderboardWinner(req.params.id);
+  res.json({ entries: db.listLeaderboardEntriesForAdmin().map(leaderboardEntryToJson) });
 });
 
 // --- Sales report ---

@@ -379,6 +379,87 @@ body {
 
 .hidden { display: none; }
 
+/* --- Feature Contest leaderboard --- */
+.leaderboard-page {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 32px 20px 60px;
+}
+.leaderboard-page h1 {
+  font-family: var(--display-font);
+  font-size: 34px;
+  font-weight: 400;
+  margin: 0 0 6px;
+}
+.leaderboard-sub { color: var(--text-dim); margin: 0 0 28px; }
+
+.leaderboard-closed {
+  text-align: center;
+  padding: 60px 20px;
+  color: var(--text-dim);
+}
+.leaderboard-closed h2 { font-family: var(--display-font); font-weight: 400; font-size: 26px; color: var(--text); margin: 0 0 8px; }
+
+.leaderboard-list { display: flex; flex-direction: column; gap: 12px; }
+
+.leaderboard-entry {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px 18px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.leaderboard-entry.is-winner { border-color: var(--accent); background: #fdf1f7; }
+
+.entry-rank {
+  font-family: var(--display-font);
+  font-size: 26px;
+  color: var(--accent);
+  flex: 0 0 auto;
+  min-width: 40px;
+}
+.entry-body { flex: 1 1 auto; min-width: 0; }
+.entry-body h3 { margin: 0 0 4px; font-size: 17px; font-weight: 700; }
+.entry-dash { color: var(--text-dim); }
+.entry-meta { margin: 0; color: var(--text-dim); font-size: 13px; }
+
+.entry-actions {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 6px;
+}
+.winner-badge {
+  display: inline-block;
+  background: var(--accent);
+  color: var(--accent-text);
+  font-family: var(--display-font);
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 4px 10px;
+  border-radius: var(--radius);
+  white-space: nowrap;
+}
+.entry-link {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--accent);
+  text-decoration: none;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 6px 12px;
+}
+.entry-link:hover { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
+
+@media (max-width: 560px) {
+  .leaderboard-entry { flex-wrap: wrap; }
+  .entry-actions { align-items: flex-start; flex-direction: row; flex-wrap: wrap; }
+}
+
 .success-page {
   max-width: 480px;
   margin: 40px auto;
