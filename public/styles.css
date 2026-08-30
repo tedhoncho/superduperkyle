@@ -393,17 +393,38 @@ body {
 }
 .leaderboard-sub { color: var(--text-dim); margin: 0 0 28px; }
 
+/* Same "small label, big pink tabular number" treatment as the site's
+   countdown banner (see .countdown-clock) — a standout callout card rather
+   than a quiet inline caption. */
 .leaderboard-stats {
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
+  display: flex;
+  justify-content: center;
   background: var(--surface-2);
+  border: 1px solid var(--border);
   border-radius: var(--radius);
-  padding: 6px 14px;
-  font-size: 13px;
-  color: var(--text-dim);
-  font-variant-numeric: tabular-nums;
+  padding: 16px 8px 18px;
   margin: 0 0 28px;
+}
+.stats-item { text-align: center; padding: 0 28px; }
+.stats-item + .stats-item { border-left: 1px solid var(--border); }
+.stats-label {
+  display: block;
+  color: var(--text-dim);
+  font-size: 12px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin-bottom: 2px;
+}
+.stats-value {
+  display: block;
+  color: var(--accent);
+  font-family: var(--display-font);
+  font-weight: 400;
+  font-size: clamp(32px, 8vw, 52px);
+  line-height: 1.05;
+  letter-spacing: 0.03em;
+  font-variant-numeric: tabular-nums;
 }
 
 .leaderboard-closed {
@@ -559,6 +580,7 @@ body {
   .leaderboard-winner-hero { padding: 24px 16px; }
   .winner-hero-trophy { font-size: 32px; }
   .winner-hero-title { font-size: 20px; }
+  .stats-item { padding: 0 16px; }
 }
 
 /* --- Spotify playlist footer (leaderboard page only) --- */

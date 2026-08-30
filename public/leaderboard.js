@@ -66,7 +66,7 @@ function renderEntry(entry, opts) {
     : '';
   const hasVoted = thumbsLimitOne && votedIds.has(entry.id);
   const thumbsHtml = thumbsEnabled
-    ? `<button type="button" class="entry-thumbs${hasVoted ? ' is-voted' : ''}" data-entry-id="${entry.id}" ${hasVoted ? 'disabled' : ''} aria-label="${hasVoted ? 'You thumbed this up' : 'Thumbs up this pick'}">😊 <span class="entry-thumbs-count">${entry.thumbsCount || 0}</span></button>`
+    ? `<button type="button" class="entry-thumbs${hasVoted ? ' is-voted' : ''}" data-entry-id="${entry.id}" ${hasVoted ? 'disabled' : ''} aria-label="${hasVoted ? 'You gave this a SMYLE face' : 'Give this pick a SMYLE face'}">😊 <span class="entry-thumbs-count">${entry.thumbsCount || 0}</span></button>`
     : '';
   // The date is redundant once entries are grouped under a date heading —
   // only repeat it inline when there's no group heading providing that
@@ -108,7 +108,7 @@ mainEl.addEventListener('click', async (e) => {
     btn.querySelector('.entry-thumbs-count').textContent = data.thumbsCount;
     if (thumbsLimitOneMode) {
       btn.classList.add('is-voted');
-      btn.setAttribute('aria-label', 'You thumbed this up');
+      btn.setAttribute('aria-label', 'You gave this a SMYLE face');
       markEntryVoted(entryId);
       // Stays disabled — one vote per browser is the whole point of this mode.
     } else {
@@ -130,17 +130,30 @@ function escapeHtml(str) {
   return div.innerHTML;
 }
 
-// Quick "N picks · N thumbs" line under the subheading. Thumbs only shows up
-// when the feature is actually on — an unconditional "0 thumbs given" when
-// the button isn't even visible to fans would just be confusing.
+// Big countdown-clock-style stat card under the subheading — same "small
+// label, big pink tabular number" treatment as the site's countdown banner.
+// The SMYLE face stat only shows up when the feature is actually on — an
+// unconditional "0 SMYLE faces" when the button isn't even visible to fans
+// would just be confusing. (SMYLE face is Kyle's own name for the thumbs-up
+// button, not "thumbs" — keep that wording in anything fans see.)
 function renderStats(entries, thumbsEnabled) {
   const totalPicks = entries.length;
-  const parts = [`${totalPicks} pick${totalPicks === 1 ? '' : 's'} so far`];
+  const items = [{ label: totalPicks === 1 ? 'Pick So Far' : 'Picks So Far', value: totalPicks }];
   if (thumbsEnabled) {
     const totalThumbs = entries.reduce((sum, e) => sum + (e.thumbsCount || 0), 0);
-    parts.push(`${totalThumbs} thumb${totalThumbs === 1 ? '' : 's'} given`);
+    items.push({ label: totalThumbs === 1 ? 'SMYLE Face' : 'SMYLE Faces', value: totalThumbs });
   }
-  return `<p class="leaderboard-stats">${parts.join(' &middot; ')}</p>`;
+  const itemsHtml = items
+    .map(
+      (item) => `
+        <div class="stats-item">
+          <span class="stats-label">${item.label}</span>
+          <span class="stats-value">${item.value}</span>
+        </div>
+      `
+    )
+    .join('');
+  return `<div class="leaderboard-stats">${itemsHtml}</div>`;
 }
 
 // Whoever has the most thumbs is the Fan Favorite — separate from (and can
