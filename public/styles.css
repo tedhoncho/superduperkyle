@@ -393,12 +393,69 @@ body {
 }
 .leaderboard-sub { color: var(--text-dim); margin: 0 0 28px; }
 
+.leaderboard-stats {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--surface-2);
+  border-radius: var(--radius);
+  padding: 6px 14px;
+  font-size: 13px;
+  color: var(--text-dim);
+  font-variant-numeric: tabular-nums;
+  margin: 0 0 28px;
+}
+
 .leaderboard-closed {
   text-align: center;
   padding: 60px 20px;
   color: var(--text-dim);
 }
 .leaderboard-closed h2 { font-family: var(--display-font); font-weight: 400; font-size: 26px; color: var(--text); margin: 0 0 8px; }
+
+.leaderboard-winner-hero {
+  text-align: center;
+  background: linear-gradient(180deg, rgba(235, 102, 174, 0.12), rgba(235, 102, 174, 0.02));
+  border: 2px solid var(--accent);
+  border-radius: 10px;
+  padding: 32px 20px;
+  margin: 0 0 32px;
+  box-shadow: 0 12px 28px rgba(235, 102, 174, 0.16);
+}
+.winner-hero-trophy { font-size: 40px; line-height: 1; margin-bottom: 6px; }
+.winner-hero-label {
+  font-family: var(--display-font);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--accent);
+  font-size: 15px;
+  margin: 0 0 8px;
+}
+.winner-hero-title { margin: 0 0 6px; font-size: 24px; font-weight: 700; }
+.winner-hero-meta { margin: 0 0 16px; color: var(--text-dim); font-size: 13px; }
+.winner-hero-link {
+  display: inline-block;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--accent-text);
+  background: var(--accent);
+  text-decoration: none;
+  padding: 9px 20px;
+  border-radius: var(--radius);
+}
+.winner-hero-link:hover { filter: brightness(1.06); }
+
+.leaderboard-date-group { margin: 0 0 28px; }
+.leaderboard-date-group:last-child { margin-bottom: 0; }
+.leaderboard-date-heading {
+  font-family: var(--display-font);
+  font-weight: 400;
+  font-size: 19px;
+  color: var(--text-dim);
+  margin: 0 0 10px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid var(--border);
+}
 
 .leaderboard-list { display: flex; flex-direction: column; gap: 12px; }
 
@@ -444,6 +501,18 @@ body {
   border-radius: var(--radius);
   white-space: nowrap;
 }
+.favorite-badge {
+  display: inline-block;
+  background: #fef3c7;
+  color: #92400e;
+  font-family: var(--display-font);
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 4px 10px;
+  border-radius: var(--radius);
+  white-space: nowrap;
+}
 .entry-link {
   font-size: 13px;
   font-weight: 600;
@@ -474,9 +543,22 @@ body {
 .entry-thumbs.is-voted { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
 .entry-thumbs-count { font-variant-numeric: tabular-nums; }
 
+.leaderboard-confetti {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  pointer-events: none;
+  z-index: 40;
+}
+
 @media (max-width: 560px) {
   .leaderboard-entry { flex-wrap: wrap; }
   .entry-actions { align-items: flex-start; flex-direction: row; flex-wrap: wrap; }
+  .leaderboard-winner-hero { padding: 24px 16px; }
+  .winner-hero-trophy { font-size: 32px; }
+  .winner-hero-title { font-size: 20px; }
 }
 
 /* --- Spotify playlist footer (leaderboard page only) --- */

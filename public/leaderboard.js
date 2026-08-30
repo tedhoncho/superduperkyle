@@ -56,8 +56,10 @@ function markEntryVoted(id) {
   }
 }
 
-function renderEntry(entry, rankNumber, thumbsEnabled, votedIds, thumbsLimitOne) {
+function renderEntry(entry, opts) {
+  const { rankNumber, thumbsEnabled, votedIds, thumbsLimitOne, isFanFavorite, showDateMeta } = opts;
   const winnerBadge = entry.isWinner ? '<span class="winner-badge">🏆 Feature Winner</span>' : '';
+  const favoriteBadge = isFanFavorite ? '<span class="favorite-badge">🔥 Fan Favorite</span>' : '';
   const rankLabel = rankNumber ? `<span class="entry-rank">#${rankNumber}</span>` : '';
   const linkHtml = entry.link
     ? `<a href="${entry.link}" class="entry-link" target="_blank" rel="noopener">Listen</a>`
@@ -66,16 +68,21 @@ function renderEntry(entry, rankNumber, thumbsEnabled, votedIds, thumbsLimitOne)
   const thumbsHtml = thumbsEnabled
     ? `<button type="button" class="entry-thumbs${hasVoted ? ' is-voted' : ''}" data-entry-id="${entry.id}" ${hasVoted ? 'disabled' : ''} aria-label="${hasVoted ? 'You thumbed this up' : 'Thumbs up this pick'}">😊 <span class="entry-thumbs-count">${entry.thumbsCount || 0}</span></button>`
     : '';
+  // The date is redundant once entries are grouped under a date heading —
+  // only repeat it inline when there's no group heading providing that
+  // context (rank mode, which isn't date-ordered).
+  const metaHtml = showDateMeta ? `<p class="entry-meta">Picked on stream &middot; ${formatDate(entry.streamDate)}</p>` : '';
 
   return `
     <div class="leaderboard-entry${entry.isWinner ? ' is-winner' : ''}">
       ${rankLabel}
       <div class="entry-body">
         <h3>${entry.artist} <span class="entry-dash">&mdash;</span> ${entry.songTitle}</h3>
-        <p class="entry-meta">Picked on stream &middot; ${formatDate(entry.streamDate)}</p>
+        ${metaHtml}
       </div>
       <div class="entry-actions">
         ${winnerBadge}
+        ${favoriteBadge}
         ${thumbsHtml}
         ${linkHtml}
       </div>
@@ -123,6 +130,65 @@ function escapeHtml(str) {
   return div.innerHTML;
 }
 
+// Quick "N picks · N thumbs" line under the subheading. Thumbs only shows up
+// when the feature is actually on — an unconditional "0 thumbs given" when
+// the button isn't even visible to fans would just be confusing.
+function renderStats(entries, thumbsEnabled) {
+  const totalPicks = entries.length;
+  const parts = [`${totalPicks} pick${totalPicks === 1 ? '' : 's'} so far`];
+  if (thumbsEnabled) {
+    const totalThumbs = entries.reduce((sum, e) => sum + (e.thumbsCount || 0), 0);
+    parts.push(`${totalThumbs} thumb${totalThumbs === 1 ? '' : 's'} given`);
+  }
+  return `<p class="leaderboard-stats">${parts.join(' &middot; ')}</p>`;
+}
+
+// Whoever has the most thumbs is the Fan Favorite — separate from (and can
+// overlap with) Kyle's own Feature Winner pick. Only meaningful when thumbs
+// are on and at least one vote exists; with everyone tied at zero there's
+// nothing to actually favor, so nobody gets the badge rather than an
+// arbitrary entry looking falsely popular. Ties for the top count all get it.
+function computeFanFavoriteIds(entries, thumbsEnabled) {
+  if (!thumbsEnabled) return new Set();
+  const max = Math.max(0, ...entries.map((e) => e.thumbsCount || 0));
+  if (max <= 0) return new Set();
+  return new Set(entries.filter((e) => (e.thumbsCount || 0) === max).map((e) => e.id));
+}
+
+// A standalone spotlight card above the regular list — the entry still
+// appears in its normal spot in the list too (with its badge), this is just
+// a bigger, harder-to-miss callout for the one Kyle actually chose.
+function renderWinnerHero(entry) {
+  const linkHtml = entry.link
+    ? `<a href="${entry.link}" class="winner-hero-link" target="_blank" rel="noopener">Listen to the winning song</a>`
+    : '';
+  return `
+    <div class="leaderboard-winner-hero">
+      <div class="winner-hero-trophy" aria-hidden="true">🏆</div>
+      <p class="winner-hero-label">Feature Winner</p>
+      <h2 class="winner-hero-title">${entry.artist} <span class="entry-dash">&mdash;</span> ${entry.songTitle}</h2>
+      <p class="winner-hero-meta">Picked on stream &middot; ${formatDate(entry.streamDate)}</p>
+      ${linkHtml}
+    </div>
+  `;
+}
+
+// Entries already arrive sorted (stream_date DESC from the server in date
+// mode), so grouping is just noticing where the date changes as we walk the
+// list — no re-sorting needed.
+function groupByStreamDate(entries) {
+  const groups = [];
+  for (const entry of entries) {
+    const last = groups[groups.length - 1];
+    if (last && last.streamDate === entry.streamDate) {
+      last.entries.push(entry);
+    } else {
+      groups.push({ streamDate: entry.streamDate, entries: [entry] });
+    }
+  }
+  return groups;
+}
+
 function renderEntries(sortMode, entries, heading, subheading, thumbsEnabled, thumbsLimitOne) {
   const headingHtml = `<h1>${escapeHtml(heading)}</h1>${subheading ? `<p class="leaderboard-sub">${escapeHtml(subheading)}</p>` : ''}`;
 
@@ -132,10 +198,124 @@ function renderEntries(sortMode, entries, heading, subheading, thumbsEnabled, th
   }
 
   const votedIds = thumbsEnabled && thumbsLimitOne ? getVotedEntryIds() : new Set();
-  const rows = entries
-    .map((e, i) => renderEntry(e, sortMode === 'rank' ? i + 1 : null, thumbsEnabled, votedIds, thumbsLimitOne))
-    .join('');
-  mainEl.innerHTML = `${headingHtml}<div class="leaderboard-list">${rows}</div>`;
+  const favoriteIds = computeFanFavoriteIds(entries, thumbsEnabled);
+  const statsHtml = renderStats(entries, thumbsEnabled);
+  const winnerEntry = entries.find((e) => e.isWinner) || null;
+  const winnerHeroHtml = winnerEntry ? renderWinnerHero(winnerEntry) : '';
+
+  const entryOpts = (e, rankNumber, showDateMeta) => ({
+    rankNumber,
+    thumbsEnabled,
+    votedIds,
+    thumbsLimitOne,
+    isFanFavorite: favoriteIds.has(e.id),
+    showDateMeta,
+  });
+
+  let listHtml;
+  if (sortMode === 'rank') {
+    // Rank order isn't date-coherent (that's the whole point of rank mode),
+    // so grouping by date wouldn't make sense here — keep the flat numbered
+    // list, same as before.
+    const rows = entries.map((e, i) => renderEntry(e, entryOpts(e, i + 1, true))).join('');
+    listHtml = `<div class="leaderboard-list">${rows}</div>`;
+  } else {
+    const groups = groupByStreamDate(entries);
+    listHtml = groups
+      .map(
+        (group) => `
+          <div class="leaderboard-date-group">
+            <h2 class="leaderboard-date-heading">${formatDate(group.streamDate)}</h2>
+            <div class="leaderboard-list">
+              ${group.entries.map((e) => renderEntry(e, entryOpts(e, null, false))).join('')}
+            </div>
+          </div>
+        `
+      )
+      .join('');
+  }
+
+  mainEl.innerHTML = `${headingHtml}${statsHtml}${winnerHeroHtml}${listHtml}`;
+  maybeLaunchConfetti(winnerEntry);
+}
+
+// --- Winner confetti ---
+// A one-time celebration, not a repeating page decoration: remembers (per
+// browser) the id of the last winner it already celebrated, so refreshing
+// the page or coming back later to check the same winner doesn't replay it
+// every time — but a genuinely new winner being announced gets its own
+// fresh burst. Skips entirely for anyone who's asked their OS/browser for
+// reduced motion.
+const CONFETTI_SEEN_KEY = 'sdk_leaderboard_confetti_seen_winner';
+
+function maybeLaunchConfetti(winnerEntry) {
+  if (!winnerEntry) return;
+  if (window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+
+  let alreadySeen = false;
+  try {
+    alreadySeen = localStorage.getItem(CONFETTI_SEEN_KEY) === winnerEntry.id;
+  } catch (err) {
+    // Can't check — fine to just play it rather than block on it.
+  }
+  if (alreadySeen) return;
+
+  try {
+    localStorage.setItem(CONFETTI_SEEN_KEY, winnerEntry.id);
+  } catch (err) {
+    // Not remembered this time, but the celebration itself doesn't depend on it.
+  }
+  launchConfetti();
+}
+
+function launchConfetti() {
+  const canvas = document.createElement('canvas');
+  canvas.className = 'leaderboard-confetti';
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+  document.body.appendChild(canvas);
+  const ctx = canvas.getContext('2d');
+  if (!ctx) {
+    canvas.remove();
+    return;
+  }
+
+  const colors = ['#eb66ae', '#ffd166', '#06d6a0', '#4cc9f0'];
+  const particles = Array.from({ length: 130 }, () => ({
+    x: Math.random() * canvas.width,
+    y: -20 - Math.random() * canvas.height * 0.4,
+    size: 5 + Math.random() * 5,
+    color: colors[Math.floor(Math.random() * colors.length)],
+    speedY: 2 + Math.random() * 3,
+    speedX: -1.5 + Math.random() * 3,
+    rotation: Math.random() * 360,
+    spin: -6 + Math.random() * 12,
+  }));
+
+  const durationMs = 3000;
+  const start = performance.now();
+
+  function frame(now) {
+    const elapsed = now - start;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    for (const p of particles) {
+      p.x += p.speedX;
+      p.y += p.speedY;
+      p.rotation += p.spin;
+      ctx.save();
+      ctx.translate(p.x, p.y);
+      ctx.rotate((p.rotation * Math.PI) / 180);
+      ctx.fillStyle = p.color;
+      ctx.fillRect(-p.size / 2, -p.size / 2, p.size, p.size * 0.6);
+      ctx.restore();
+    }
+    if (elapsed < durationMs) {
+      requestAnimationFrame(frame);
+    } else {
+      canvas.remove();
+    }
+  }
+  requestAnimationFrame(frame);
 }
 
 // --- Spotify playlist footer ---
