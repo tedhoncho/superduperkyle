@@ -427,6 +427,20 @@ body {
   font-variant-numeric: tabular-nums;
 }
 
+.round-status-pill {
+  display: inline-flex;
+  align-items: center;
+  background: var(--surface-2);
+  color: var(--accent);
+  font-family: var(--display-font);
+  font-size: 13px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 6px 14px;
+  border-radius: var(--radius);
+  margin: 0 0 20px;
+}
+
 .leaderboard-closed {
   text-align: center;
   padding: 60px 20px;
@@ -477,6 +491,48 @@ body {
   padding-bottom: 6px;
   border-bottom: 1px solid var(--border);
 }
+
+.leaderboard-round-heading {
+  font-family: var(--display-font);
+  font-weight: 400;
+  font-size: 22px;
+  color: var(--accent);
+  margin: 0 0 14px;
+  padding-bottom: 8px;
+  border-bottom: 2px solid var(--accent);
+}
+
+/* Collapsed by default, same idiom as the admin hint toggles — the point is
+   fans CAN see every pick that entered the contest without it competing for
+   attention with who's currently in the running. */
+.honorable-mentions {
+  margin-top: 32px;
+  border-top: 1px solid var(--border);
+  padding-top: 20px;
+}
+.honorable-mentions summary {
+  cursor: pointer;
+  list-style: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--display-font);
+  font-size: 18px;
+  color: var(--text-dim);
+}
+.honorable-mentions summary::-webkit-details-marker { display: none; }
+.honorable-mentions summary::before { content: "▸"; font-size: 13px; }
+.honorable-mentions[open] summary::before { content: "▾"; }
+.honorable-mentions summary:hover { color: var(--text); }
+.honorable-count {
+  font-size: 13px;
+  color: var(--text-dim);
+  background: var(--surface-2);
+  border-radius: 999px;
+  padding: 2px 9px;
+  font-variant-numeric: tabular-nums;
+}
+.honorable-mentions-body { margin-top: 16px; }
 
 .leaderboard-list { display: flex; flex-direction: column; gap: 12px; }
 
@@ -534,6 +590,18 @@ body {
   border-radius: var(--radius);
   white-space: nowrap;
 }
+.stream-pick-badge {
+  display: inline-block;
+  background: #dbeafe;
+  color: #1e40af;
+  font-family: var(--display-font);
+  font-size: 12px;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  padding: 4px 10px;
+  border-radius: var(--radius);
+  white-space: nowrap;
+}
 .entry-link {
   font-size: 13px;
   font-weight: 600;
@@ -581,6 +649,8 @@ body {
   .winner-hero-trophy { font-size: 32px; }
   .winner-hero-title { font-size: 20px; }
   .stats-item { padding: 0 16px; }
+  .leaderboard-round-heading { font-size: 19px; }
+  .honorable-mentions summary { font-size: 16px; }
 }
 
 /* --- Spotify playlist footer (leaderboard page only) --- */

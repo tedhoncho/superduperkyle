@@ -632,6 +632,11 @@ async function loadLeaderboardSettings() {
   document.getElementById('field-leaderboard-subheading').value = settings.leaderboardSubheading || '';
   document.getElementById('field-leaderboard-thumbs-enabled').checked = !!settings.leaderboardThumbsEnabled;
   document.getElementById('field-leaderboard-thumbs-limit-one').checked = !!settings.leaderboardThumbsLimitOne;
+  const contestRound = ['pool', 'top10', 'top3', 'winner'].includes(settings.leaderboardContestRound)
+    ? settings.leaderboardContestRound
+    : 'pool';
+  document.querySelector(`input[name="leaderboardContestRound"][value="${contestRound}"]`).checked = true;
+  document.getElementById('field-leaderboard-honorable-mentions').checked = !!settings.leaderboardShowHonorableMentions;
 }
 
 document.getElementById('btn-view-leaderboard').addEventListener('click', () => {
@@ -661,6 +666,8 @@ document.getElementById('btn-save-leaderboard-settings').addEventListener('click
       leaderboardSubheading: document.getElementById('field-leaderboard-subheading').value.trim(),
       leaderboardThumbsEnabled: document.getElementById('field-leaderboard-thumbs-enabled').checked,
       leaderboardThumbsLimitOne: document.getElementById('field-leaderboard-thumbs-limit-one').checked,
+      leaderboardContestRound: document.querySelector('input[name="leaderboardContestRound"]:checked').value,
+      leaderboardShowHonorableMentions: document.getElementById('field-leaderboard-honorable-mentions').checked,
     });
     successEl.classList.remove('hidden');
   } catch (err) {
@@ -678,6 +685,8 @@ async function loadLeaderboardEntries() {
   const { entries } = await api('GET', '/api/admin/leaderboard');
   renderLeaderboardList(entries);
 }
+
+const ROUND_LABELS = { pool: 'Open Pool', top10: 'Top 10', top3: 'Top 3' };
 
 function renderLeaderboardList(entries) {
   const listEl = document.getElementById('leaderboard-list');
@@ -697,10 +706,16 @@ function renderLeaderboardList(entries) {
         <button class="btn-down" ${index === entries.length - 1 ? 'disabled' : ''}>&or;</button>
       </div>
       <div class="admin-project-info">
-        <h3>${entry.artist} — ${entry.songTitle}${entry.isWinner ? ' <span class="admin-featured-badge">🏆 Winner</span>' : ''}</h3>
-        <p>Stream date: ${entry.streamDate}${entry.link ? ' · has a link' : ''} · 😊 ${entry.thumbsCount}</p>
+        <h3>${entry.artist} — ${entry.songTitle}${entry.isWinner ? ' <span class="admin-featured-badge">🏆 Winner</span>' : ''}${entry.streamTopPick ? ' <span class="admin-soldout-badge" style="background: var(--accent);">⭐ Stream Top 3</span>' : ''}</h3>
+        <p>Stream date: ${entry.streamDate}${entry.link ? ' · has a link' : ''} · 😊 ${entry.thumbsCount} · Round: ${ROUND_LABELS[entry.round] || 'Open Pool'}</p>
       </div>
-      <div class="admin-project-row-actions">
+      <div class="admin-project-row-actions" style="flex-wrap: wrap; justify-content: flex-end;">
+        <select class="admin-round-select" title="Contest-wide round for this entry" ${entry.isWinner ? 'disabled' : ''}>
+          <option value="pool" ${entry.round === 'pool' ? 'selected' : ''}>Open Pool</option>
+          <option value="top10" ${entry.round === 'top10' ? 'selected' : ''}>Top 10</option>
+          <option value="top3" ${entry.round === 'top3' ? 'selected' : ''}>Top 3</option>
+        </select>
+        <button class="admin-btn-ghost btn-stream-pick">${entry.streamTopPick ? 'Remove Stream Pick' : '⭐ Stream Top 3'}</button>
         <button class="admin-btn-ghost btn-winner">${entry.isWinner ? 'Remove Winner' : 'Mark Winner'}</button>
         <button class="admin-btn-ghost btn-edit">Edit</button>
         <button class="admin-btn-ghost btn-delete">Delete</button>
@@ -709,6 +724,8 @@ function renderLeaderboardList(entries) {
     row.querySelector('.btn-up').addEventListener('click', () => reorderLeaderboardEntry(entry.id, 'up'));
     row.querySelector('.btn-down').addEventListener('click', () => reorderLeaderboardEntry(entry.id, 'down'));
     row.querySelector('.btn-winner').addEventListener('click', () => toggleLeaderboardWinner(entry));
+    row.querySelector('.btn-stream-pick').addEventListener('click', () => toggleLeaderboardStreamTopPick(entry));
+    row.querySelector('.admin-round-select').addEventListener('change', (e) => setLeaderboardEntryRound(entry.id, e.target.value));
     row.querySelector('.btn-edit').addEventListener('click', () => openLeaderboardEditForm(entry));
     row.querySelector('.btn-delete').addEventListener('click', () => deleteLeaderboardEntry(entry));
     listEl.appendChild(row);
@@ -723,6 +740,21 @@ async function reorderLeaderboardEntry(id, direction) {
 async function toggleLeaderboardWinner(entry) {
   const body = entry.isWinner ? { clear: true } : {};
   const { entries } = await api('POST', `/api/admin/leaderboard/${entry.id}/winner`, body);
+  renderLeaderboardList(entries);
+  // Marking a winner flips the contest round to "Winner Announced" on the
+  // server (see db.setLeaderboardWinner) — refresh the settings panel so the
+  // Contest round radio doesn't sit stale and get accidentally saved back to
+  // an earlier round the next time Kyle hits Save up there.
+  if (!entry.isWinner) loadLeaderboardSettings();
+}
+
+async function setLeaderboardEntryRound(id, round) {
+  const { entries } = await api('POST', `/api/admin/leaderboard/${id}/round`, { round });
+  renderLeaderboardList(entries);
+}
+
+async function toggleLeaderboardStreamTopPick(entry) {
+  const { entries } = await api('POST', `/api/admin/leaderboard/${entry.id}/stream-top-pick`, { value: !entry.streamTopPick });
   renderLeaderboardList(entries);
 }
 

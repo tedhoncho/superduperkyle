@@ -143,6 +143,18 @@ const settingsMigrations = {
   // one-vote-per-browser limit later once there's enough traffic that
   // ballot-stuffing actually matters. Off = unlimited voting.
   leaderboard_thumbs_limit_one: `ALTER TABLE settings ADD COLUMN leaderboard_thumbs_limit_one INTEGER NOT NULL DEFAULT 0`,
+  // Contest rounds: the contest-wide "what's currently live" switch. Every
+  // entry carries its own round (see the leaderboard_entries migration
+  // below) — this is the separate, deliberate flip that decides which round
+  // the PUBLIC page treats as active. Entries at the active round are "in
+  // the running"; everyone else falls back to Honorable Mentions (subject to
+  // the toggle right below). Defaults to 'pool' so nothing changes for
+  // existing contests until Ted actually advances one.
+  leaderboard_contest_round: `ALTER TABLE settings ADD COLUMN leaderboard_contest_round TEXT NOT NULL DEFAULT 'pool'`,
+  // Defaults to ON (1) so today's "everyone always shows" behavior doesn't
+  // change the moment this ships — Ted turns it off later for a contest
+  // where he'd rather non-advancing picks just disappear from public view.
+  leaderboard_show_honorable_mentions: `ALTER TABLE settings ADD COLUMN leaderboard_show_honorable_mentions INTEGER NOT NULL DEFAULT 1`,
 };
 for (const [column, sql] of Object.entries(settingsMigrations)) {
   if (!settingsColumns.includes(column)) db.exec(sql);
@@ -156,6 +168,20 @@ for (const [column, sql] of Object.entries(settingsMigrations)) {
 const leaderboardEntryColumns = db.prepare(`PRAGMA table_info(leaderboard_entries)`).all().map((c) => c.name);
 if (!leaderboardEntryColumns.includes('thumbs_count')) {
   db.exec(`ALTER TABLE leaderboard_entries ADD COLUMN thumbs_count INTEGER NOT NULL DEFAULT 0`);
+}
+
+// --- Migration: contest rounds. Every entry starts in the open 'pool' and
+// Kyle manually promotes it to 'top10' then 'top3' as the contest narrows —
+// see settings.leaderboard_contest_round above for the separate "what's
+// currently live" switch. stream_top_pick is a different, independent flag:
+// Kyle's top-3-of-that-specific-stream pick, used to keep each day's results
+// digestible — unrelated to which contest-wide round an entry has reached. ---
+const leaderboardRoundColumns = db.prepare(`PRAGMA table_info(leaderboard_entries)`).all().map((c) => c.name);
+if (!leaderboardRoundColumns.includes('round')) {
+  db.exec(`ALTER TABLE leaderboard_entries ADD COLUMN round TEXT NOT NULL DEFAULT 'pool'`);
+}
+if (!leaderboardRoundColumns.includes('stream_top_pick')) {
+  db.exec(`ALTER TABLE leaderboard_entries ADD COLUMN stream_top_pick INTEGER NOT NULL DEFAULT 0`);
 }
 
 // --- Migration: projects.display_order (manual control over which release
@@ -254,7 +280,10 @@ function updateSettings({
   leaderboardSubheading,
   leaderboardThumbsEnabled,
   leaderboardThumbsLimitOne,
+  leaderboardContestRound,
+  leaderboardShowHonorableMentions,
 }) {
+  const validRounds = ['pool', 'top10', 'top3', 'winner'];
   db.prepare(
     `UPDATE settings SET
        sale_notification_emails = ?,
@@ -269,7 +298,9 @@ function updateSettings({
        leaderboard_heading = ?,
        leaderboard_subheading = ?,
        leaderboard_thumbs_enabled = ?,
-       leaderboard_thumbs_limit_one = ?
+       leaderboard_thumbs_limit_one = ?,
+       leaderboard_contest_round = ?,
+       leaderboard_show_honorable_mentions = ?
      WHERE id = 1`
   ).run(
     saleNotificationEmails,
@@ -284,7 +315,9 @@ function updateSettings({
     leaderboardHeading,
     leaderboardSubheading,
     leaderboardThumbsEnabled ? 1 : 0,
-    leaderboardThumbsLimitOne ? 1 : 0
+    leaderboardThumbsLimitOne ? 1 : 0,
+    validRounds.includes(leaderboardContestRound) ? leaderboardContestRound : 'pool',
+    leaderboardShowHonorableMentions ? 1 : 0
   );
   return getSettings();
 }
@@ -518,11 +551,16 @@ function swapLeaderboardRank(idA, idB) {
 
 // Only one entry is ever "the" Feature Winner — clear any existing badge
 // before setting the new one so the public page never has to reason about
-// (or accidentally render) more than one at a time.
+// (or accidentally render) more than one at a time. Also advances the
+// contest-wide round to 'winner' in the same transaction — marking a winner
+// IS the final round, so there's no separate step to remember. Clearing a
+// winner deliberately does NOT step the round back down; that's Ted's call
+// to make explicitly via the round selector if he needs to undo further.
 function setLeaderboardWinner(id) {
   const tx = db.transaction(() => {
     db.prepare(`UPDATE leaderboard_entries SET is_winner = 0 WHERE is_winner = 1`).run();
     db.prepare(`UPDATE leaderboard_entries SET is_winner = 1 WHERE id = ?`).run(id);
+    db.prepare(`UPDATE settings SET leaderboard_contest_round = 'winner' WHERE id = 1`).run();
   });
   tx();
   return getLeaderboardEntryRow(id);
@@ -530,6 +568,23 @@ function setLeaderboardWinner(id) {
 
 function clearLeaderboardWinner() {
   db.prepare(`UPDATE leaderboard_entries SET is_winner = 0 WHERE is_winner = 1`).run();
+}
+
+// Contest-wide round progression for a single entry — Kyle's manual call,
+// same spirit as setLeaderboardWinner above but for the earlier rounds.
+const VALID_ENTRY_ROUNDS = ['pool', 'top10', 'top3'];
+function setLeaderboardEntryRound(id, round) {
+  if (!VALID_ENTRY_ROUNDS.includes(round)) return getLeaderboardEntryRow(id);
+  db.prepare(`UPDATE leaderboard_entries SET round = ? WHERE id = ?`).run(round, id);
+  return getLeaderboardEntryRow(id);
+}
+
+// Kyle's top-3-of-that-specific-stream flag — independent of the
+// contest-wide round above. No hard cap enforced here; the "3" is a
+// self-managed guideline, not a rule the backend polices.
+function setLeaderboardStreamTopPick(id, value) {
+  db.prepare(`UPDATE leaderboard_entries SET stream_top_pick = ? WHERE id = ?`).run(value ? 1 : 0, id);
+  return getLeaderboardEntryRow(id);
 }
 
 // Fan thumbs-up. A single atomic UPDATE (no read-then-write) so two fans
@@ -582,5 +637,7 @@ module.exports = {
   swapLeaderboardRank,
   setLeaderboardWinner,
   clearLeaderboardWinner,
+  setLeaderboardEntryRound,
+  setLeaderboardStreamTopPick,
   incrementLeaderboardThumbs,
 };

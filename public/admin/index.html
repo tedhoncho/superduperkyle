@@ -117,13 +117,46 @@
         </label>
       </fieldset>
 
+      <fieldset class="admin-pricing-choice">
+        <legend>Contest round</legend>
+        <label class="admin-radio">
+          <input type="radio" name="leaderboardContestRound" value="pool" checked />
+          Open Pool — everyone's still in it
+        </label>
+        <label class="admin-radio">
+          <input type="radio" name="leaderboardContestRound" value="top10" />
+          Top 10 — only entries you've promoted to Top 10 are "in the running"
+        </label>
+        <label class="admin-radio">
+          <input type="radio" name="leaderboardContestRound" value="top3" />
+          Top 3 — only entries you've promoted to Top 3 are "in the running"
+        </label>
+        <label class="admin-radio">
+          <input type="radio" name="leaderboardContestRound" value="winner" />
+          Winner Announced
+        </label>
+      </fieldset>
+      <details class="admin-hint-toggle">
+        <summary>What does this do?</summary>
+        <p class="admin-hint">This is the one switch that decides what's live for fans right now. Promoting individual entries to Top 10 or Top 3 below gets them ready, but nothing changes on the public page until you flip this. Marking a Winner (further down) flips it to Winner Announced automatically.</p>
+      </details>
+
+      <label class="admin-checkbox" style="margin-top: 12px;">
+        <input type="checkbox" id="field-leaderboard-honorable-mentions" checked />
+        Show picks that didn't advance, under "Honorable Mentions"
+      </label>
+      <details class="admin-hint-toggle">
+        <summary>What does this do?</summary>
+        <p class="admin-hint">On (default): once you narrow to Top 10 or Top 3, everyone else stays visible in a separate "Honorable Mentions" section so fans can see the whole journey. Off: they disappear from the public page entirely once a round closes. Only matters once Contest round above is past Open Pool.</p>
+      </details>
+
       <label class="admin-checkbox" style="margin-top: 16px;">
         <input type="checkbox" id="field-leaderboard-thumbs-enabled" />
         Let fans thumbs-up picks on the public page
       </label>
       <details class="admin-hint-toggle">
         <summary>What does this do?</summary>
-        <p class="admin-hint">Off by default — built and ready, but fans won't see it until you turn it on for a contest you want it live for.</p>
+        <p class="admin-hint">Off by default — built and ready, but fans won't see it until you turn it on for a contest you want it live for. These are just a signal for the team — they never decide which entries get promoted through the rounds above; that's always your manual call.</p>
       </details>
 
       <label class="admin-checkbox" style="margin-left: 24px;">

@@ -60,6 +60,11 @@ function renderEntry(entry, opts) {
   const { rankNumber, thumbsEnabled, votedIds, thumbsLimitOne, isFanFavorite, showDateMeta } = opts;
   const winnerBadge = entry.isWinner ? '<span class="winner-badge">🏆 Feature Winner</span>' : '';
   const favoriteBadge = isFanFavorite ? '<span class="favorite-badge">🔥 Fan Favorite</span>' : '';
+  // Kyle's own top-3-of-that-specific-stream pick — independent of (and can
+  // stack with) the contest-wide round badges above. Always shown when set,
+  // regardless of which round the contest is currently in, since it's a
+  // historical record of that day's results, not a live status.
+  const streamPickBadge = entry.streamTopPick ? '<span class="stream-pick-badge">⭐ Stream Top 3</span>' : '';
   const rankLabel = rankNumber ? `<span class="entry-rank">#${rankNumber}</span>` : '';
   const linkHtml = entry.link
     ? `<a href="${entry.link}" class="entry-link" target="_blank" rel="noopener">Listen</a>`
@@ -83,6 +88,7 @@ function renderEntry(entry, opts) {
       <div class="entry-actions">
         ${winnerBadge}
         ${favoriteBadge}
+        ${streamPickBadge}
         ${thumbsHtml}
         ${linkHtml}
       </div>
@@ -202,7 +208,78 @@ function groupByStreamDate(entries) {
   return groups;
 }
 
-function renderEntries(sortMode, entries, heading, subheading, thumbsEnabled, thumbsLimitOne) {
+// Renders a date-grouped block of entries — pulled out of renderEntries so
+// the same "grouped by the day it was picked" presentation can be reused
+// both for the open pool and inside the Honorable Mentions section below.
+function renderDateGroupedList(entries, entryOpts) {
+  const groups = groupByStreamDate(entries);
+  return groups
+    .map(
+      (group) => `
+        <div class="leaderboard-date-group">
+          <h2 class="leaderboard-date-heading">${formatDate(group.streamDate)}</h2>
+          <div class="leaderboard-list">
+            ${group.entries.map((e) => renderEntry(e, entryOpts(e, null, false))).join('')}
+          </div>
+        </div>
+      `
+    )
+    .join('');
+}
+
+// Flat (non-grouped) list — used for the narrowed Top 10 / Top 3 "in the
+// running" view, where a handful of finalists are competing head-to-head
+// rather than sitting in date cohorts, so a date heading per entry doesn't
+// add much; each entry keeps its date inline instead (showDateMeta: true).
+function renderFlatList(entries, entryOpts) {
+  return `<div class="leaderboard-list">${entries.map((e) => renderEntry(e, entryOpts(e, null, true))).join('')}</div>`;
+}
+
+// Splits the full entry list into "in the running" (whatever the currently
+// active contest round is) vs everyone else. Pool round has no split at all
+// — that's the whole open list, same as before this feature existed. Winner
+// round has nothing "in the running" separately, since the Winner Hero above
+// already fully covers the winner; everyone else (including the runner-up
+// Top 3) becomes Honorable Mentions.
+function splitByContestRound(entries, contestRound) {
+  if (contestRound === 'pool') return { inRunning: entries, honorable: [] };
+  if (contestRound === 'winner') {
+    return { inRunning: [], honorable: entries.filter((e) => !e.isWinner) };
+  }
+  return {
+    inRunning: entries.filter((e) => e.round === contestRound),
+    honorable: entries.filter((e) => e.round !== contestRound),
+  };
+}
+
+const ROUND_TIER_LABELS = { top10: 'Top 10', top3: 'Top 3' };
+const ROUND_STATUS_LABELS = {
+  top10: 'Now Judging: Top 10',
+  top3: 'Now Judging: Top 3',
+  winner: 'Winner Announced 🎉',
+};
+
+function renderRoundStatus(contestRound) {
+  const label = ROUND_STATUS_LABELS[contestRound];
+  return label ? `<p class="round-status-pill">${label}</p>` : '';
+}
+
+// Collapsed by default via <details> — same reasoning as the admin checkbox
+// hints (see admin.css): the point is fans CAN see the whole journey without
+// it competing for attention with who's currently in the running.
+function renderHonorableMentions(entries, entryOpts) {
+  if (!entries.length) return '';
+  return `
+    <details class="honorable-mentions">
+      <summary>Honorable Mentions <span class="honorable-count">${entries.length}</span></summary>
+      <div class="honorable-mentions-body">
+        ${renderDateGroupedList(entries, entryOpts)}
+      </div>
+    </details>
+  `;
+}
+
+function renderEntries(sortMode, entries, heading, subheading, thumbsEnabled, thumbsLimitOne, contestRound, showHonorableMentions) {
   const headingHtml = `<h1>${escapeHtml(heading)}</h1>${subheading ? `<p class="leaderboard-sub">${escapeHtml(subheading)}</p>` : ''}`;
 
   if (!entries.length) {
@@ -213,6 +290,7 @@ function renderEntries(sortMode, entries, heading, subheading, thumbsEnabled, th
   const votedIds = thumbsEnabled && thumbsLimitOne ? getVotedEntryIds() : new Set();
   const favoriteIds = computeFanFavoriteIds(entries, thumbsEnabled);
   const statsHtml = renderStats(entries, thumbsEnabled);
+  const roundStatusHtml = renderRoundStatus(contestRound);
   const winnerEntry = entries.find((e) => e.isWinner) || null;
   const winnerHeroHtml = winnerEntry ? renderWinnerHero(winnerEntry) : '';
 
@@ -225,30 +303,31 @@ function renderEntries(sortMode, entries, heading, subheading, thumbsEnabled, th
     showDateMeta,
   });
 
-  let listHtml;
-  if (sortMode === 'rank') {
-    // Rank order isn't date-coherent (that's the whole point of rank mode),
-    // so grouping by date wouldn't make sense here — keep the flat numbered
-    // list, same as before.
-    const rows = entries.map((e, i) => renderEntry(e, entryOpts(e, i + 1, true))).join('');
-    listHtml = `<div class="leaderboard-list">${rows}</div>`;
-  } else {
-    const groups = groupByStreamDate(entries);
-    listHtml = groups
-      .map(
-        (group) => `
-          <div class="leaderboard-date-group">
-            <h2 class="leaderboard-date-heading">${formatDate(group.streamDate)}</h2>
-            <div class="leaderboard-list">
-              ${group.entries.map((e) => renderEntry(e, entryOpts(e, null, false))).join('')}
-            </div>
-          </div>
-        `
-      )
-      .join('');
+  let inRunningHtml;
+  if (contestRound === 'pool') {
+    // Unchanged from before this feature existed: the full open pool, date
+    // grouped (or the dormant flat numbered rank-mode list).
+    if (sortMode === 'rank') {
+      const rows = entries.map((e, i) => renderEntry(e, entryOpts(e, i + 1, true))).join('');
+      inRunningHtml = `<div class="leaderboard-list">${rows}</div>`;
+    } else {
+      inRunningHtml = renderDateGroupedList(entries, entryOpts);
+    }
   }
 
-  mainEl.innerHTML = `${headingHtml}${statsHtml}${winnerHeroHtml}${listHtml}`;
+  const { inRunning, honorable } = splitByContestRound(entries, contestRound);
+  if (contestRound !== 'pool') {
+    const roundHeading = ROUND_TIER_LABELS[contestRound]
+      ? `<h2 class="leaderboard-round-heading">${ROUND_TIER_LABELS[contestRound]}</h2>`
+      : '';
+    // Nothing promoted to this round yet — rather than show an empty
+    // heading, just skip straight to Honorable Mentions below.
+    inRunningHtml = inRunning.length ? `${roundHeading}${renderFlatList(inRunning, entryOpts)}` : '';
+  }
+  const honorableHtml =
+    contestRound !== 'pool' && showHonorableMentions ? renderHonorableMentions(honorable, entryOpts) : '';
+
+  mainEl.innerHTML = `${headingHtml}${statsHtml}${roundStatusHtml}${winnerHeroHtml}${inRunningHtml}${honorableHtml}`;
   maybeLaunchConfetti(winnerEntry);
 }
 
@@ -418,7 +497,16 @@ async function load() {
     thumbsLimitOneMode = !!data.thumbsLimitOne;
 
     if (data.visible) {
-      renderEntries(data.sortMode, data.entries, data.heading, data.subheading, data.thumbsEnabled, data.thumbsLimitOne);
+      renderEntries(
+        data.sortMode,
+        data.entries,
+        data.heading,
+        data.subheading,
+        data.thumbsEnabled,
+        data.thumbsLimitOne,
+        data.contestRound || 'pool',
+        data.showHonorableMentions !== false
+      );
     } else {
       renderClosed();
     }

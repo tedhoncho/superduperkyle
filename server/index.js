@@ -136,6 +136,8 @@ app.get('/api/leaderboard', (req, res) => {
         link: row.link || '',
         isWinner: !!row.is_winner,
         thumbsCount: row.thumbs_count,
+        round: row.round || 'pool',
+        streamTopPick: !!row.stream_top_pick,
       }))
     : [];
   res.json({
@@ -147,6 +149,8 @@ app.get('/api/leaderboard', (req, res) => {
     subheading: settings.leaderboard_subheading || '',
     thumbsEnabled,
     thumbsLimitOne,
+    contestRound: settings.leaderboard_contest_round || 'pool',
+    showHonorableMentions: !!settings.leaderboard_show_honorable_mentions,
   });
 });
 

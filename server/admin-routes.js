@@ -172,6 +172,8 @@ function settingsToJson(row) {
     leaderboardSubheading: row.leaderboard_subheading,
     leaderboardThumbsEnabled: !!row.leaderboard_thumbs_enabled,
     leaderboardThumbsLimitOne: !!row.leaderboard_thumbs_limit_one,
+    leaderboardContestRound: row.leaderboard_contest_round || 'pool',
+    leaderboardShowHonorableMentions: !!row.leaderboard_show_honorable_mentions,
   };
 }
 
@@ -230,6 +232,15 @@ router.put('/settings', (req, res) => {
     req.body.leaderboardThumbsLimitOne !== undefined
       ? req.body.leaderboardThumbsLimitOne === true || req.body.leaderboardThumbsLimitOne === 'true'
       : !!current.leaderboard_thumbs_limit_one;
+  const validContestRounds = ['pool', 'top10', 'top3', 'winner'];
+  const leaderboardContestRound =
+    req.body.leaderboardContestRound !== undefined && validContestRounds.includes(req.body.leaderboardContestRound)
+      ? req.body.leaderboardContestRound
+      : current.leaderboard_contest_round;
+  const leaderboardShowHonorableMentions =
+    req.body.leaderboardShowHonorableMentions !== undefined
+      ? req.body.leaderboardShowHonorableMentions === true || req.body.leaderboardShowHonorableMentions === 'true'
+      : !!current.leaderboard_show_honorable_mentions;
 
   let spotifyPlaylistId = current.spotify_playlist_id || '';
   if (req.body.spotifyPlaylistLink !== undefined) {
@@ -261,6 +272,8 @@ router.put('/settings', (req, res) => {
     leaderboardSubheading,
     leaderboardThumbsEnabled,
     leaderboardThumbsLimitOne,
+    leaderboardContestRound,
+    leaderboardShowHonorableMentions,
   });
   res.json({ settings: settingsToJson(settings) });
 });
@@ -280,6 +293,8 @@ function leaderboardEntryToJson(row) {
     isWinner: !!row.is_winner,
     rankPosition: row.rank_position,
     thumbsCount: row.thumbs_count,
+    round: row.round || 'pool',
+    streamTopPick: !!row.stream_top_pick,
   };
 }
 
@@ -356,6 +371,29 @@ router.post('/leaderboard/:id/winner', (req, res) => {
   const entry = db.getLeaderboardEntryRow(req.params.id);
   if (!entry) return res.status(404).json({ error: 'Entry not found.' });
   db.setLeaderboardWinner(req.params.id);
+  res.json({ entries: db.listLeaderboardEntriesForAdmin().map(leaderboardEntryToJson) });
+});
+
+// Contest-wide round progression (Open Pool / Top 10 / Top 3) for one entry —
+// Kyle's manual call at each narrowing step, same pattern as the winner
+// endpoint above. Marking the actual Winner (above) is its own step and
+// separately advances the contest to the Final round.
+router.post('/leaderboard/:id/round', (req, res) => {
+  const entry = db.getLeaderboardEntryRow(req.params.id);
+  if (!entry) return res.status(404).json({ error: 'Entry not found.' });
+  if (!['pool', 'top10', 'top3'].includes(req.body.round)) {
+    return res.status(400).json({ error: 'Round must be pool, top10, or top3.' });
+  }
+  db.setLeaderboardEntryRound(req.params.id, req.body.round);
+  res.json({ entries: db.listLeaderboardEntriesForAdmin().map(leaderboardEntryToJson) });
+});
+
+// Kyle's top-3-of-that-specific-stream flag — independent of the round
+// above. No server-side cap at 3; that's a guideline Kyle self-manages.
+router.post('/leaderboard/:id/stream-top-pick', (req, res) => {
+  const entry = db.getLeaderboardEntryRow(req.params.id);
+  if (!entry) return res.status(404).json({ error: 'Entry not found.' });
+  db.setLeaderboardStreamTopPick(req.params.id, !!req.body.value);
   res.json({ entries: db.listLeaderboardEntriesForAdmin().map(leaderboardEntryToJson) });
 });
 
