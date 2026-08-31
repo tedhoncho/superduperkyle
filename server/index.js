@@ -13,6 +13,7 @@ const storage = require('./storage');
 const downloads = require('./downloads');
 const { fulfillOrder } = require('./fulfillment');
 const adminRoutes = require('./admin-routes');
+const twitch = require('./twitch');
 
 const app = express();
 const PORT = process.env.PORT || 4242;
@@ -151,6 +152,20 @@ app.get('/api/leaderboard', (req, res) => {
     thumbsLimitOne,
     contestRound: settings.leaderboard_contest_round || 'pool',
     showHonorableMentions: !!settings.leaderboard_show_honorable_mentions,
+  });
+});
+
+// Powers the "Live on Twitch" banner on the leaderboard page. This is
+// Kyle's own channel's public live/offline state (see server/twitch.js) —
+// nothing fan-specific here, so it's cheap to poll from the client on an
+// interval. Missing Twitch credentials just means `live` stays false rather
+// than erroring, so the page never breaks over this.
+app.get('/api/twitch-status', async (req, res) => {
+  const status = await twitch.getLiveStatus();
+  res.json({
+    ...status,
+    channelLogin: twitch.CHANNEL_LOGIN || '',
+    channelUrl: twitch.CHANNEL_LOGIN ? `https://twitch.tv/${twitch.CHANNEL_LOGIN}` : '',
   });
 });
 

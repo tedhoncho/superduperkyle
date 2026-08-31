@@ -17,6 +17,25 @@
         <a href="https://www.superduperkyle.com" class="nav-link">Main Site</a>
       </nav>
     </div>
+    <!-- Only shows while Kyle is actually streaming (see /api/twitch-status,
+         server/twitch.js) — leaderboard.js polls this periodically since a
+         fan might be sitting on this page when he goes live. Sits above the
+         countdown below: happening right now beats a countdown to later. -->
+    <div id="live-banner" class="live-banner hidden">
+      <a id="live-banner-link" class="live-banner-link" target="_blank" rel="noopener">
+        <span class="live-dot" aria-hidden="true"></span>
+        <span id="live-banner-text">Kyle is live on Twitch right now</span>
+      </a>
+    </div>
+    <!-- Same banner as the store page header (see .countdown-banner in
+         styles.css) — this is expected to be the highest-traffic page, so
+         Ted wants fans landing here to also see a new release counting down,
+         not just people browsing the store. Driven by leaderboard.js, which
+         reads the same site-wide /api/site-settings the storefront does. -->
+    <div id="countdown-banner" class="countdown-banner hidden">
+      <span id="countdown-label" class="countdown-label"></span>
+      <span id="countdown-clock" class="countdown-clock"></span>
+    </div>
   </header>
 
   <main id="leaderboard-main" class="leaderboard-page">

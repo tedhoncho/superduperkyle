@@ -490,6 +490,114 @@ function renderSpotifyFooter(playlistId) {
   setFooterPadding();
 }
 
+// --- Release countdown banner ---
+// Copied from app.js rather than shared, since neither page currently
+// pulls in a common script file — if the countdown logic ever needs to
+// change, update it in both places. Settings are site-wide (set from the
+// admin "Site" tab, same /api/site-settings the storefront reads), so this
+// isn't leaderboard-specific config — it's the same countdown, just also
+// shown here. The server only ever sends a countdown object while it's
+// genuinely still counting down, so no countdown in the response just means
+// don't show the banner — no "expired" state to handle on this end.
+let countdownTimer = null;
+
+function stopCountdown() {
+  if (countdownTimer) clearInterval(countdownTimer);
+  countdownTimer = null;
+  document.getElementById('countdown-banner').classList.add('hidden');
+}
+
+function startCountdown(label, targetAt) {
+  const banner = document.getElementById('countdown-banner');
+  const labelEl = document.getElementById('countdown-label');
+  const clockEl = document.getElementById('countdown-clock');
+  const target = new Date(targetAt).getTime();
+
+  labelEl.textContent = label || 'New release drops in:';
+  banner.classList.remove('hidden');
+
+  function tick() {
+    const remainingMs = target - Date.now();
+    if (remainingMs <= 0) {
+      // Target time reached while a fan has the page open — auto-hide
+      // rather than showing a stuck 0:00:00 or an "available now" state.
+      stopCountdown();
+      return;
+    }
+    const totalSeconds = Math.floor(remainingMs / 1000);
+    const days = Math.floor(totalSeconds / 86400);
+    const hours = Math.floor((totalSeconds % 86400) / 3600);
+    const minutes = Math.floor((totalSeconds % 3600) / 60);
+    const seconds = totalSeconds % 60;
+    const dayPart = days > 0 ? `${days}d ` : '';
+    clockEl.textContent = `${dayPart}${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`;
+  }
+
+  tick();
+  if (countdownTimer) clearInterval(countdownTimer);
+  countdownTimer = setInterval(tick, 1000);
+}
+
+async function loadCountdown() {
+  try {
+    const res = await fetch('/api/site-settings');
+    const data = await res.json();
+    if (data.countdown) {
+      startCountdown(data.countdown.label, data.countdown.targetAt);
+    } else {
+      stopCountdown();
+    }
+  } catch (err) {
+    // Non-critical — the leaderboard entries load independently via their
+    // own request, so a failure here shouldn't block or error out the page.
+    console.error('[countdown] failed to load:', err.message);
+  }
+}
+
+// --- "Live on Twitch" banner ---
+// Shows only while Kyle is actually streaming (see /api/twitch-status,
+// server/twitch.js). This is the page most tied to his streams and expected
+// to get the most traffic, so the point is pulling fans who land here
+// straight over to watch, not just people who happen to check Twitch
+// directly. Polled on an interval rather than checked once on load, since a
+// fan can sit on this page for a while and Kyle could go live (or end a
+// stream) while they're here.
+const LIVE_STATUS_POLL_MS = 60 * 1000;
+let liveStatusTimer = null;
+
+function renderLiveBanner(status) {
+  const banner = document.getElementById('live-banner');
+  const link = document.getElementById('live-banner-link');
+  const textEl = document.getElementById('live-banner-text');
+
+  if (!status || !status.live) {
+    banner.classList.add('hidden');
+    return;
+  }
+
+  link.href = status.channelUrl || 'https://twitch.tv';
+  textEl.textContent = status.title ? `Kyle is live now — ${status.title}` : 'Kyle is live on Twitch right now';
+  banner.classList.remove('hidden');
+}
+
+async function loadLiveStatus() {
+  try {
+    const res = await fetch('/api/twitch-status');
+    const data = await res.json();
+    renderLiveBanner(data);
+  } catch (err) {
+    // Non-critical, same "fail quiet" treatment as the countdown banner —
+    // worst case the banner just doesn't update this cycle.
+    console.error('[twitch] failed to load live status:', err.message);
+  }
+}
+
+function startLiveStatusPolling() {
+  loadLiveStatus();
+  if (liveStatusTimer) clearInterval(liveStatusTimer);
+  liveStatusTimer = setInterval(loadLiveStatus, LIVE_STATUS_POLL_MS);
+}
+
 async function load() {
   try {
     const res = await fetch('/api/leaderboard');
@@ -518,3 +626,5 @@ async function load() {
 }
 
 load();
+loadCountdown();
+startLiveStatusPolling();

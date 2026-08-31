@@ -393,6 +393,49 @@ body {
 }
 .leaderboard-sub { color: var(--text-dim); margin: 0 0 28px; }
 
+/* "Live on Twitch" banner — shown only while Kyle is actually streaming
+   (see /api/twitch-status). Sits above the release countdown: a stream
+   happening right now is more time-sensitive than a release still days out.
+   .live-banner itself stays a plain block (no explicit display) so the
+   shared .hidden utility toggles it the same way it does .countdown-banner;
+   the flex layout lives on the inner link instead, which is never hidden
+   directly. */
+.live-banner {
+  max-width: 960px;
+  margin: 14px auto 0;
+}
+.live-banner-link {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  background: var(--danger);
+  color: #fff;
+  border-radius: var(--radius);
+  padding: 10px 16px;
+  font-family: var(--display-font);
+  font-size: 16px;
+  letter-spacing: 0.03em;
+  text-decoration: none;
+  transition: opacity 0.15s ease;
+}
+.live-banner-link:hover { opacity: 0.9; }
+.live-dot {
+  flex: none;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #fff;
+  animation: live-pulse 1.4s ease-in-out infinite;
+}
+@keyframes live-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .live-dot { animation: none; }
+}
+
 /* Same "small label, big pink tabular number" treatment as the site's
    countdown banner (see .countdown-clock) — a standout callout card rather
    than a quiet inline caption. */
