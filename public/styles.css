@@ -474,11 +474,6 @@ body {
   transition: filter 0.15s ease;
 }
 .twitch-follow-button:hover { filter: brightness(1.08); }
-.twitch-follow-note {
-  margin: 6px 0 0;
-  font-size: 12px;
-  color: var(--text-dim);
-}
 
 /* Same "small label, big pink tabular number" treatment as the site's
    countdown banner (see .countdown-clock) — a standout callout card rather
