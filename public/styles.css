@@ -461,16 +461,24 @@ body {
   margin: 14px auto 0;
   text-align: center;
 }
-.twitch-follow-link {
+.twitch-follow-button {
   display: inline-block;
-  color: var(--text-dim);
-  font-size: 13px;
+  background: #9146ff;
+  color: #fff;
+  font-family: var(--display-font);
+  font-size: 16px;
+  letter-spacing: 0.03em;
   text-decoration: none;
-  border-bottom: 1px dashed var(--border);
-  padding-bottom: 1px;
-  transition: color 0.15s ease, border-color 0.15s ease;
+  padding: 10px 26px;
+  border-radius: var(--radius);
+  transition: filter 0.15s ease;
 }
-.twitch-follow-link:hover { color: var(--accent); border-color: var(--accent); }
+.twitch-follow-button:hover { filter: brightness(1.08); }
+.twitch-follow-note {
+  margin: 6px 0 0;
+  font-size: 12px;
+  color: var(--text-dim);
+}
 
 /* Same "small label, big pink tabular number" treatment as the site's
    countdown banner (see .countdown-clock) — a standout callout card rather
