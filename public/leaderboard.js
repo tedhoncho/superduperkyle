@@ -353,7 +353,7 @@ function renderEntries(sortMode, entries, heading, subheading, thumbsEnabled, th
   const honorableHtml =
     contestRound !== 'pool' && showHonorableMentions ? renderHonorableMentions(honorable, entryOpts) : '';
 
-  mainEl.innerHTML = `${headingHtml}${renderCriteriaBanner()}${statsHtml}${roundStatusHtml}${winnerHeroHtml}${inRunningHtml}${honorableHtml}`;
+  mainEl.innerHTML = `${headingHtml}${statsHtml}${renderCriteriaBanner()}${roundStatusHtml}${winnerHeroHtml}${inRunningHtml}${honorableHtml}`;
   maybeLaunchConfetti(winnerEntry);
 }
 
