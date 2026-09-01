@@ -706,7 +706,7 @@ function renderLeaderboardList(entries) {
         <button class="btn-down" ${index === entries.length - 1 ? 'disabled' : ''}>&or;</button>
       </div>
       <div class="admin-project-info">
-        <h3>${entry.artist} — ${entry.songTitle}${entry.isWinner ? ' <span class="admin-featured-badge">🏆 Winner</span>' : ''}${entry.streamTopPick ? ' <span class="admin-soldout-badge" style="background: var(--accent);">⭐ Stream Top 3</span>' : ''}</h3>
+        <h3>${entry.artist} — ${entry.songTitle}${entry.isWinner ? ' <span class="admin-featured-badge">🏆 Winner</span>' : ''}${entry.streamTopPick ? ' <span class="admin-soldout-badge" style="background: var(--accent);">⭐ Kyle\'s Top 3</span>' : ''}</h3>
         <p>Stream date: ${entry.streamDate}${entry.link ? ' · has a link' : ''} · 😊 ${entry.thumbsCount} · Round: ${ROUND_LABELS[entry.round] || 'Open Pool'}</p>
       </div>
       <div class="admin-project-row-actions" style="flex-wrap: wrap; justify-content: flex-end;">
@@ -715,7 +715,7 @@ function renderLeaderboardList(entries) {
           <option value="top10" ${entry.round === 'top10' ? 'selected' : ''}>Top 10</option>
           <option value="top3" ${entry.round === 'top3' ? 'selected' : ''}>Top 3</option>
         </select>
-        <button class="admin-btn-ghost btn-stream-pick">${entry.streamTopPick ? 'Remove Stream Pick' : '⭐ Stream Top 3'}</button>
+        <button class="admin-btn-ghost btn-stream-pick">${entry.streamTopPick ? "Remove Kyle's Top 3" : "⭐ Mark as Kyle's Top 3"}</button>
         <button class="admin-btn-ghost btn-winner">${entry.isWinner ? 'Remove Winner' : 'Mark Winner'}</button>
         <button class="admin-btn-ghost btn-edit">Edit</button>
         <button class="admin-btn-ghost btn-delete">Delete</button>

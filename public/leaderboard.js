@@ -64,7 +64,9 @@ function renderEntry(entry, opts) {
   // stack with) the contest-wide round badges above. Always shown when set,
   // regardless of which round the contest is currently in, since it's a
   // historical record of that day's results, not a live status.
-  const streamPickBadge = entry.streamTopPick ? '<span class="stream-pick-badge">⭐ Stream Top 3</span>' : '';
+  const streamPickBadge = entry.streamTopPick
+    ? '<span class="stream-pick-badge" title="One of Kyle\'s top 3 picks from this stream — not vote-based">⭐ Kyle\'s Top 3</span>'
+    : '';
   const rankLabel = rankNumber ? `<span class="entry-rank">#${rankNumber}</span>` : '';
   const linkHtml = entry.link
     ? `<a href="${entry.link}" class="entry-link" target="_blank" rel="noopener">Listen</a>`
@@ -252,6 +254,28 @@ function splitByContestRound(entries, contestRound) {
   };
 }
 
+// Evergreen explainer of Kyle's judging criteria -- static content, not
+// admin-editable or tied to any particular round, since "what makes a good
+// feature candidate" doesn't change stream to stream.
+const FEATURE_CRITERIA = [
+  { icon: '🎶', label: 'Great Melody' },
+  { icon: '🪝', label: 'Catchy Hook' },
+  { icon: '✍️', label: 'Quality Lyrics' },
+  { icon: '🎤', label: 'Vocal Performance' },
+  { icon: '🎚️', label: 'Good Mix' },
+];
+
+function renderCriteriaBanner() {
+  const chips = FEATURE_CRITERIA.map((c) => `<span class="criteria-chip">${c.icon} ${c.label}</span>`).join('');
+  return `
+    <div class="criteria-banner">
+      <p class="criteria-title">What Kyle looks for in a feature candidate</p>
+      <div class="criteria-chips">${chips}</div>
+      <p class="criteria-note">These are the songs that are advancing.</p>
+    </div>
+  `;
+}
+
 const ROUND_TIER_LABELS = { top10: 'Top 10', top3: 'Top 3' };
 const ROUND_STATUS_LABELS = {
   top10: 'Now Judging: Top 10',
@@ -283,7 +307,7 @@ function renderEntries(sortMode, entries, heading, subheading, thumbsEnabled, th
   const headingHtml = `<h1>${escapeHtml(heading)}</h1>${subheading ? `<p class="leaderboard-sub">${escapeHtml(subheading)}</p>` : ''}`;
 
   if (!entries.length) {
-    mainEl.innerHTML = `${headingHtml}<p class="loading">No picks yet — check back after the next stream.</p>`;
+    mainEl.innerHTML = `${headingHtml}${renderCriteriaBanner()}<p class="loading">No picks yet — check back after the next stream.</p>`;
     return;
   }
 
@@ -327,7 +351,7 @@ function renderEntries(sortMode, entries, heading, subheading, thumbsEnabled, th
   const honorableHtml =
     contestRound !== 'pool' && showHonorableMentions ? renderHonorableMentions(honorable, entryOpts) : '';
 
-  mainEl.innerHTML = `${headingHtml}${statsHtml}${roundStatusHtml}${winnerHeroHtml}${inRunningHtml}${honorableHtml}`;
+  mainEl.innerHTML = `${headingHtml}${renderCriteriaBanner()}${statsHtml}${roundStatusHtml}${winnerHeroHtml}${inRunningHtml}${honorableHtml}`;
   maybeLaunchConfetti(winnerEntry);
 }
 
