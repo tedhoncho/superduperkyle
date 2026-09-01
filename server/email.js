@@ -47,6 +47,9 @@ async function sendDownloadEmail({ to, artistName, projectTitle, baseUrl, tokens
         <h2 style="margin-bottom:4px;">Thanks for supporting ${escapeHtml(artistName)}!</h2>
         <p style="color:#555;">${message}</p>
         ${downloadLinksHtml(baseUrl, tokens)}
+        <p style="margin:16px 0;padding:12px 14px;background:#fdf1f7;border:2px solid #eb66ae;border-radius:8px;">
+          <a href="${baseUrl}/guides/add-song-to-spotify-guide.pdf" style="color:#111;font-weight:700;text-decoration:none;">&#128196; New to this? Get the quick guide to adding your song to Spotify &rarr;</a>
+        </p>
         <p style="color:#888;font-size:13px;">Links expire in ${expiryDays} day${expiryDays === 1 ? '' : 's'} and can be used up to a few times, so grab your files and save them somewhere safe.</p>
       </div>
     `,

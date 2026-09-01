@@ -765,3 +765,40 @@ body {
 }
 .download-list a:hover { filter: brightness(1.05); }
 .back-link { display: inline-block; margin-top: 24px; color: var(--text-dim); }
+
+/* --- Storefront footer: Spotify guide banner ---
+   Ted wants this obvious to every fan, not buried fine print, so it's a
+   full-width bordered banner rather than a quiet text link. Lives only on
+   the store page (public/index.html) per Ted's request. */
+.site-footer {
+  max-width: 720px;
+  margin: 32px auto 40px;
+  padding: 0 20px;
+}
+.guide-banner {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  background: #fdf1f7;
+  border: 2px solid var(--accent);
+  border-radius: 8px;
+  padding: 14px 18px;
+  text-decoration: none;
+  color: var(--text);
+}
+.guide-banner:hover { filter: brightness(0.98); }
+.guide-banner-icon { flex: none; font-size: 26px; line-height: 1; }
+.guide-banner-text { flex: 1 1 auto; font-size: 14px; line-height: 1.4; }
+.guide-banner-text strong { display: block; font-size: 15px; margin-bottom: 2px; }
+.guide-banner-cta {
+  flex: none;
+  font-family: var(--display-font);
+  font-size: 15px;
+  color: var(--accent);
+  font-weight: 700;
+  white-space: nowrap;
+}
+@media (max-width: 480px) {
+  .guide-banner { flex-wrap: wrap; }
+  .guide-banner-cta { margin-left: 40px; }
+}
