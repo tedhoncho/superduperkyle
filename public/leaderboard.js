@@ -569,15 +569,38 @@ function renderLiveBanner(status) {
   const banner = document.getElementById('live-banner');
   const link = document.getElementById('live-banner-link');
   const textEl = document.getElementById('live-banner-text');
+  const viewersEl = document.getElementById('live-banner-viewers');
+  const followBanner = document.getElementById('twitch-follow-banner');
+  const followLink = document.getElementById('twitch-follow-link');
 
-  if (!status || !status.live) {
+  // No Twitch channel configured yet at all (server/twitch.js needs at
+  // least TWITCH_CHANNEL_LOGIN) — hide both banners rather than linking
+  // fans to a blank/broken twitch.tv URL.
+  if (!status || !status.channelUrl) {
     banner.classList.add('hidden');
+    followBanner.classList.add('hidden');
     return;
   }
 
-  link.href = status.channelUrl || 'https://twitch.tv';
-  textEl.textContent = status.title ? `Kyle is live now — ${status.title}` : 'Kyle is live on Twitch right now';
-  banner.classList.remove('hidden');
+  if (status.live) {
+    link.href = status.channelUrl;
+    textEl.textContent = status.title ? `Kyle is live now — ${status.title}` : 'Kyle is live on Twitch right now';
+    if (status.viewerCount) {
+      viewersEl.textContent = `${status.viewerCount.toLocaleString()} watching`;
+      viewersEl.classList.remove('hidden');
+    } else {
+      viewersEl.classList.add('hidden');
+    }
+    banner.classList.remove('hidden');
+    followBanner.classList.add('hidden');
+  } else {
+    // Not live right now, but the channel is known — show the quiet,
+    // always-on follow nudge instead. This is the far more common case:
+    // most leaderboard traffic happens between streams.
+    banner.classList.add('hidden');
+    followLink.href = status.channelUrl;
+    followBanner.classList.remove('hidden');
+  }
 }
 
 async function loadLiveStatus() {

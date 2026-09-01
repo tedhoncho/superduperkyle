@@ -23,9 +23,22 @@
          countdown below: happening right now beats a countdown to later. -->
     <div id="live-banner" class="live-banner hidden">
       <a id="live-banner-link" class="live-banner-link" target="_blank" rel="noopener">
-        <span class="live-dot" aria-hidden="true"></span>
-        <span id="live-banner-text">Kyle is live on Twitch right now</span>
+        <span class="live-banner-row">
+          <span class="live-dot" aria-hidden="true"></span>
+          <span id="live-banner-text" class="live-banner-text">Kyle is live on Twitch right now</span>
+          <span id="live-banner-viewers" class="live-banner-viewers hidden"></span>
+        </span>
+        <span class="live-banner-cta">Watch on Twitch and hit Follow &mdash; it helps us land on their homepage &rarr;</span>
       </a>
+    </div>
+    <!-- Quiet, always-on version of the same ask for the far more common
+         case: someone browsing the leaderboard while Kyle isn't streaming.
+         Mutually exclusive with #live-banner above -- renderLiveBanner in
+         leaderboard.js shows exactly one of the two, never both. Appears as
+         soon as TWITCH_CHANNEL_LOGIN is set, even before the full API
+         credentials needed for live detection are in place. -->
+    <div id="twitch-follow-banner" class="twitch-follow-banner hidden">
+      <a id="twitch-follow-link" class="twitch-follow-link" target="_blank" rel="noopener">Follow Kyle on Twitch so you don't miss the next stream &rarr;</a>
     </div>
     <!-- Same banner as the store page header (see .countdown-banner in
          styles.css) — this is expected to be the highest-traffic page, so
