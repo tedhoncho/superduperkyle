@@ -498,25 +498,32 @@ body {
    under the page heading, before the live stats/round status, since it
    answers "what makes the cut" before showing who's currently in the
    running. */
-.criteria-banner {
+.criteria-accordion {
   background: var(--surface-2);
   border: 1px solid var(--border);
   border-radius: var(--radius);
-  padding: 16px 20px;
+  padding: 12px 16px;
   margin: 0 0 24px;
-  text-align: center;
 }
-.criteria-title {
-  margin: 0 0 10px;
+.criteria-accordion summary {
+  cursor: pointer;
+  list-style: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
   font-family: var(--display-font);
   font-size: 15px;
   letter-spacing: 0.02em;
-  color: var(--text);
+  color: var(--text-dim);
 }
+.criteria-accordion summary::-webkit-details-marker { display: none; }
+.criteria-accordion summary::before { content: "▸"; font-size: 12px; }
+.criteria-accordion[open] summary::before { content: "▾"; }
+.criteria-accordion summary:hover { color: var(--text); }
+.criteria-accordion-body { margin-top: 12px; }
 .criteria-chips {
   display: flex;
   flex-wrap: wrap;
-  justify-content: center;
   gap: 8px;
   margin-bottom: 8px;
 }

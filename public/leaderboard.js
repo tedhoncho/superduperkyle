@@ -268,11 +268,13 @@ const FEATURE_CRITERIA = [
 function renderCriteriaBanner() {
   const chips = FEATURE_CRITERIA.map((c) => `<span class="criteria-chip">${c.icon} ${c.label}</span>`).join('');
   return `
-    <div class="criteria-banner">
-      <p class="criteria-title">What Kyle looks for in a feature candidate</p>
-      <div class="criteria-chips">${chips}</div>
-      <p class="criteria-note">These are the songs that are advancing.</p>
-    </div>
+    <details class="criteria-accordion">
+      <summary>What Kyle looks for in a feature candidate</summary>
+      <div class="criteria-accordion-body">
+        <div class="criteria-chips">${chips}</div>
+        <p class="criteria-note">These are the songs that are advancing.</p>
+      </div>
+    </details>
   `;
 }
 
