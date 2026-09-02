@@ -305,10 +305,22 @@
           Sold out — stays visible and previewable, but fans can't buy it
         </label>
 
-        <label class="admin-checkbox" style="margin: 4px 0 20px;">
+        <label class="admin-checkbox" style="margin: 4px 0 8px;">
           <input type="checkbox" id="field-coming-soon" />
-          Coming soon — shows on the storefront now, but fans can't buy until you hit "Go Live"
+          Coming soon — shows on the storefront now, but fans can't buy yet
         </label>
+
+        <fieldset class="admin-field admin-pricing-choice hidden" id="release-mode-fieldset" style="margin: 0 0 20px;">
+          <legend>How does it go live?</legend>
+          <label class="admin-radio">
+            <input type="radio" name="releaseMode" value="manual" checked />
+            Manual — I'll click "Go Live" myself
+          </label>
+          <label class="admin-radio">
+            <input type="radio" name="releaseMode" value="auto" />
+            Auto — go live the instant the countdown on the Site tab hits zero
+          </label>
+        </fieldset>
 
         <fieldset class="admin-field admin-pricing-choice">
           <legend>Pricing</legend>

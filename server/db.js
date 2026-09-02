@@ -217,6 +217,14 @@ if (!projectColumns.includes('sold_out')) {
 if (!projectColumns.includes('coming_soon')) {
   db.exec(`ALTER TABLE projects ADD COLUMN coming_soon INTEGER NOT NULL DEFAULT 0`);
 }
+// --- Migration: projects.release_mode -- how a coming-soon project leaves
+// that state: 'manual' (Ted/Kyle click "Go Live") or 'auto' (flips live on
+// its own once settings.countdown_target_at passes -- see sweepAutoReleases
+// below). Irrelevant once coming_soon is 0. Defaults to 'manual' so nothing
+// existing behaves differently the moment this ships. ---
+if (!projectColumns.includes('release_mode')) {
+  db.exec(`ALTER TABLE projects ADD COLUMN release_mode TEXT NOT NULL DEFAULT 'manual'`);
+}
 
 // --- Migration: orders.order_number (short human-friendly id — SDK-YYYYMMDD-XXXX
 // — shown to fans/Ted instead of Stripe's long checkout session id). Added after
@@ -274,6 +282,23 @@ function markOrderFulfilled(id) {
 
 function getSettings() {
   return db.prepare(`SELECT * FROM settings WHERE id = 1`).get();
+}
+
+// Flips any coming-soon project set to auto-release live once the site's
+// advertised countdown has actually passed. Tied to countdown_enabled (not
+// just countdown_target_at) so this only fires against the currently-live
+// public countdown, not a stale leftover date from an earlier drop. Called
+// at the top of listAllProjects() (below) so it runs on every storefront and
+// admin catalog read -- no separate scheduler needed for a store this size.
+function sweepAutoReleases() {
+  const settings = getSettings();
+  if (!settings.countdown_enabled || !settings.countdown_target_at) return;
+  const targetMs = new Date(settings.countdown_target_at).getTime();
+  if (Number.isNaN(targetMs) || Date.now() < targetMs) return;
+  db.prepare(
+    `UPDATE projects SET coming_soon = 0, updated_at = datetime('now')
+     WHERE coming_soon = 1 AND release_mode = 'auto'`
+  ).run();
 }
 
 function updateSettings({
@@ -390,6 +415,7 @@ function decrementTokenUse(token) {
 // --- Catalog: projects ---
 
 function listProjects() {
+  sweepAutoReleases();
   return db.prepare(`SELECT * FROM projects ORDER BY display_order ASC, created_at DESC`).all();
 }
 
@@ -407,9 +433,9 @@ function nextProjectDisplayOrder() {
 
 function insertProject(p) {
   db.prepare(
-    `INSERT INTO projects (id, title, type, release_year, cover_art_file, pricing_mode, fixed_price_cents, pwyw_min_per_track_cents, suggested_amounts_cents, description, sold_out, coming_soon, display_order)
-     VALUES (@id, @title, @type, @releaseYear, @coverArtFile, @pricingMode, @fixedPriceCents, @pwywMinPerTrackCents, @suggestedAmountsCents, @description, @soldOut, @comingSoon, @displayOrder)`
-  ).run({ soldOut: 0, comingSoon: 0, ...p, displayOrder: nextProjectDisplayOrder() });
+    `INSERT INTO projects (id, title, type, release_year, cover_art_file, pricing_mode, fixed_price_cents, pwyw_min_per_track_cents, suggested_amounts_cents, description, sold_out, coming_soon, release_mode, display_order)
+     VALUES (@id, @title, @type, @releaseYear, @coverArtFile, @pricingMode, @fixedPriceCents, @pwywMinPerTrackCents, @suggestedAmountsCents, @description, @soldOut, @comingSoon, @releaseMode, @displayOrder)`
+  ).run({ soldOut: 0, comingSoon: 0, releaseMode: 'manual', ...p, displayOrder: nextProjectDisplayOrder() });
 }
 
 function updateProject(id, fields) {
@@ -422,7 +448,7 @@ function updateProject(id, fields) {
        cover_art_file = @cover_art_file, pricing_mode = @pricing_mode,
        fixed_price_cents = @fixed_price_cents, pwyw_min_per_track_cents = @pwyw_min_per_track_cents,
        suggested_amounts_cents = @suggested_amounts_cents, description = @description,
-       sold_out = @sold_out, coming_soon = @coming_soon,
+       sold_out = @sold_out, coming_soon = @coming_soon, release_mode = @release_mode,
        updated_at = datetime('now')
      WHERE id = @id`
   ).run(merged);
@@ -614,6 +640,7 @@ function incrementLeaderboardThumbs(id) {
 
 module.exports = {
   db,
+  sweepAutoReleases,
   listProjects,
   getProjectRow,
   insertProject,

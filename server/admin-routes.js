@@ -42,6 +42,7 @@ function projectFieldsFromBody(body) {
     description: body.description || '',
     sold_out: body.soldOut === true || body.soldOut === 'true' ? 1 : 0,
     coming_soon: body.comingSoon === true || body.comingSoon === 'true' ? 1 : 0,
+    release_mode: body.releaseMode === 'auto' ? 'auto' : 'manual',
   };
 }
 
@@ -99,6 +100,7 @@ router.post('/projects', (req, res) => {
     description: fields.description,
     soldOut: fields.sold_out,
     comingSoon: fields.coming_soon,
+    releaseMode: fields.release_mode,
   });
 
   res.json({ project: catalog.getProject(id) });

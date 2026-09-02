@@ -42,6 +42,7 @@ function rowToProject(row) {
     description: row.description || '',
     soldOut: !!row.sold_out,
     comingSoon: !!row.coming_soon,
+    releaseMode: row.release_mode || 'manual',
     tracks,
   };
 }

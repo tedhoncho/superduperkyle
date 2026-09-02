@@ -114,7 +114,7 @@ function renderProjectList(projects) {
       </div>
       ${project.coverArtFile ? `<img class="admin-project-thumb" src="/art/${project.coverArtFile}" />` : '<div class="admin-project-thumb"></div>'}
       <div class="admin-project-info">
-        <h3>${project.title}${index === 0 ? ' <span class="admin-featured-badge">Featured</span>' : ''}${project.soldOut ? ' <span class="admin-soldout-badge">Sold Out</span>' : ''}${project.comingSoon ? ' <span class="admin-comingsoon-badge">Coming Soon</span>' : ''}</h3>
+        <h3>${project.title}${index === 0 ? ' <span class="admin-featured-badge">Featured</span>' : ''}${project.soldOut ? ' <span class="admin-soldout-badge">Sold Out</span>' : ''}${project.comingSoon ? ` <span class="admin-comingsoon-badge">Coming Soon${project.releaseMode === 'auto' ? ' · Auto' : ''}</span>` : ''}</h3>
         <p>${project.tracks.length} song${project.tracks.length === 1 ? '' : 's'} (${releasedCount} live) · ${priceLabel}</p>
       </div>
       <div class="admin-project-row-actions">
@@ -373,7 +373,10 @@ function openEditor(project) {
   document.getElementById('field-year').value = project ? (project.releaseYear || '') : '';
   document.getElementById('field-description').value = project ? project.description : '';
   document.getElementById('field-sold-out').checked = project ? !!project.soldOut : false;
-  document.getElementById('field-coming-soon').checked = project ? !!project.comingSoon : false;
+  const comingSoonChecked = project ? !!project.comingSoon : false;
+  document.getElementById('field-coming-soon').checked = comingSoonChecked;
+  document.querySelector(`input[name="releaseMode"][value="${project && project.releaseMode === 'auto' ? 'auto' : 'manual'}"]`).checked = true;
+  document.getElementById('release-mode-fieldset').classList.toggle('hidden', !comingSoonChecked);
 
   const pricingMode = project ? project.pricingMode : 'fixed';
   document.querySelector(`input[name="pricingMode"][value="${pricingMode}"]`).checked = true;
@@ -404,6 +407,13 @@ function openEditor(project) {
 
 document.querySelectorAll('input[name="pricingMode"]').forEach((el) => el.addEventListener('change', updatePriceLabel));
 
+// The release-mode choice (manual/auto) only makes sense once Coming soon is
+// checked -- keep it hidden otherwise so it doesn't imply a project that's
+// already live has some pending auto-release lurking.
+document.getElementById('field-coming-soon').addEventListener('change', (e) => {
+  document.getElementById('release-mode-fieldset').classList.toggle('hidden', !e.target.checked);
+});
+
 function updatePriceLabel() {
   const mode = document.querySelector('input[name="pricingMode"]:checked').value;
   document.getElementById('price-label').textContent = mode === 'fixed' ? 'Price ($)' : 'Minimum per song ($)';
@@ -423,6 +433,7 @@ document.getElementById('btn-save-project').addEventListener('click', async () =
     description: document.getElementById('field-description').value.trim(),
     soldOut: document.getElementById('field-sold-out').checked,
     comingSoon: document.getElementById('field-coming-soon').checked,
+    releaseMode: document.querySelector('input[name="releaseMode"]:checked').value,
   };
 
   if (!body.title) {

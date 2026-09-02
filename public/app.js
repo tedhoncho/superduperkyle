@@ -61,9 +61,12 @@ function startCountdown(label, targetAt) {
   function tick() {
     const remainingMs = target - Date.now();
     if (remainingMs <= 0) {
-      // Target time reached while a fan has the page open — auto-hide
-      // rather than showing a stuck 0:00:00 or an "available now" state.
+      // Target time reached while a fan has the page open — auto-hide the
+      // countdown rather than showing a stuck 0:00:00, and re-fetch the
+      // catalog so any Coming Soon project set to auto-release flips to
+      // buyable right away, without the fan needing to reload the page.
       stopCountdown();
+      loadCatalog();
       return;
     }
     const totalSeconds = Math.floor(remainingMs / 1000);
