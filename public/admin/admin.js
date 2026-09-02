@@ -114,10 +114,11 @@ function renderProjectList(projects) {
       </div>
       ${project.coverArtFile ? `<img class="admin-project-thumb" src="/art/${project.coverArtFile}" />` : '<div class="admin-project-thumb"></div>'}
       <div class="admin-project-info">
-        <h3>${project.title}${index === 0 ? ' <span class="admin-featured-badge">Featured</span>' : ''}${project.soldOut ? ' <span class="admin-soldout-badge">Sold Out</span>' : ''}</h3>
+        <h3>${project.title}${index === 0 ? ' <span class="admin-featured-badge">Featured</span>' : ''}${project.soldOut ? ' <span class="admin-soldout-badge">Sold Out</span>' : ''}${project.comingSoon ? ' <span class="admin-comingsoon-badge">Coming Soon</span>' : ''}</h3>
         <p>${project.tracks.length} song${project.tracks.length === 1 ? '' : 's'} (${releasedCount} live) · ${priceLabel}</p>
       </div>
       <div class="admin-project-row-actions">
+        ${project.comingSoon ? '<button class="admin-btn-ghost btn-go-live">🚀 Go Live</button>' : ''}
         <button class="admin-btn-ghost btn-edit">Edit</button>
         <button class="admin-btn-ghost btn-delete">Delete</button>
       </div>
@@ -126,6 +127,7 @@ function renderProjectList(projects) {
     row.querySelector('.btn-down').addEventListener('click', () => reorderProject(project.id, 'down'));
     row.querySelector('.btn-edit').addEventListener('click', () => openEditor(project));
     row.querySelector('.btn-delete').addEventListener('click', () => deleteProject(project));
+    if (project.comingSoon) row.querySelector('.btn-go-live').addEventListener('click', () => goLiveProject(project));
     listEl.appendChild(row);
   });
 }
@@ -133,6 +135,29 @@ function renderProjectList(projects) {
 async function reorderProject(projectId, direction) {
   const { projects } = await api('POST', `/api/admin/projects/${projectId}/reorder`, { direction });
   renderProjectList(projects);
+}
+
+// One-click release: flips comingSoon off and leaves every other field
+// exactly as it already was. PUT /projects/:id re-derives the full field
+// set from the body (same route the editor's Save button uses), so this
+// resubmits the project's current values rather than sending a partial
+// patch. This is the "hit Go Live" moment Ted described -- typically
+// clicked the instant a countdown on the storefront reaches zero.
+async function goLiveProject(project) {
+  if (!confirm(`Make "${project.title}" available to buy right now? This can't be undone from here.`)) return;
+  await api('PUT', `/api/admin/projects/${project.id}`, {
+    title: project.title,
+    type: project.type,
+    releaseYear: project.releaseYear || '',
+    pricingMode: project.pricingMode,
+    price: project.pricingMode === 'fixed'
+      ? (project.fixedPriceCents || 0) / 100
+      : (project.pwywMinPerTrackCents || 0) / 100,
+    description: project.description || '',
+    soldOut: project.soldOut,
+    comingSoon: false,
+  });
+  loadProjects();
 }
 
 async function deleteProject(project) {
@@ -348,6 +373,7 @@ function openEditor(project) {
   document.getElementById('field-year').value = project ? (project.releaseYear || '') : '';
   document.getElementById('field-description').value = project ? project.description : '';
   document.getElementById('field-sold-out').checked = project ? !!project.soldOut : false;
+  document.getElementById('field-coming-soon').checked = project ? !!project.comingSoon : false;
 
   const pricingMode = project ? project.pricingMode : 'fixed';
   document.querySelector(`input[name="pricingMode"][value="${pricingMode}"]`).checked = true;
@@ -396,6 +422,7 @@ document.getElementById('btn-save-project').addEventListener('click', async () =
     price: document.getElementById('field-price').value,
     description: document.getElementById('field-description').value.trim(),
     soldOut: document.getElementById('field-sold-out').checked,
+    comingSoon: document.getElementById('field-coming-soon').checked,
   };
 
   if (!body.title) {

@@ -205,6 +205,42 @@ body {
   margin: 0 0 16px;
 }
 
+/* Coming Soon -- browsable ahead of release, but not buyable yet. Full-color
+   art (unlike Sold Out's grayscale) since this is building anticipation for
+   a drop, not marking something as done. */
+.coming-soon-banner {
+  position: absolute;
+  top: 18%;
+  left: -8%;
+  right: -8%;
+  transform: rotate(-8deg);
+  background: var(--accent);
+  color: var(--accent-text);
+  text-align: center;
+  padding: 6px 0;
+  font-family: var(--display-font);
+  font-size: 15px;
+  font-weight: 400;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  pointer-events: none;
+}
+.is-coming-soon .buy-button {
+  background: var(--accent);
+  color: var(--accent-text);
+  border: none;
+}
+.coming-soon-notice {
+  color: var(--text);
+  font-weight: 600;
+  font-size: 13px;
+  text-align: center;
+  padding: 14px 0;
+  border-top: 1px solid var(--border);
+  border-bottom: 1px solid var(--border);
+  margin: 0 0 16px;
+}
+
 @media (max-width: 640px) {
   .featured-card { flex-direction: column; }
   .featured-art { flex: none; width: 100%; }

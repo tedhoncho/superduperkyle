@@ -124,6 +124,20 @@ body { background: var(--surface-2); }
   vertical-align: middle;
   margin-left: 6px;
 }
+.admin-comingsoon-badge {
+  display: inline-block;
+  background: transparent;
+  color: var(--accent);
+  border: 1px solid var(--accent);
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  padding: 1px 6px;
+  border-radius: 10px;
+  vertical-align: middle;
+  margin-left: 6px;
+}
 .admin-project-info p { margin: 0; color: var(--text-dim); font-size: 13px; }
 .admin-project-row-actions { display: flex; gap: 8px; flex-shrink: 0; }
 .admin-empty { color: var(--text-dim); text-align: center; padding: 40px 0; }

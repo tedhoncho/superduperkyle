@@ -112,7 +112,9 @@ function buildCard(project, isFeatured) {
     project.pricingMode === 'fixed'
       ? money(project.fixedPriceCents)
       : `From ${money(project.pwywMinPerTrackCents * releasedTracks.length)}`;
-  const trackCountLabel = `${releasedTracks.length} track${releasedTracks.length === 1 ? '' : 's'}`;
+  const trackCountLabel = project.comingSoon
+    ? `${project.tracks.length} track${project.tracks.length === 1 ? '' : 's'} coming`
+    : `${releasedTracks.length} track${releasedTracks.length === 1 ? '' : 's'}`;
   const art = project.coverArtFile
     ? `<img src="/art/${project.coverArtFile}" alt="${project.title} cover art" />`
     : '<div class="art-placeholder"></div>';
@@ -121,14 +123,22 @@ function buildCard(project, isFeatured) {
   // banner and grayscale treatment communicate that at a glance, and the
   // button text/click behavior still opens the modal so fans can look.
   const soldOutBanner = project.soldOut ? '<div class="sold-out-banner">Sold Out</div>' : '';
-  const buyLabel = project.soldOut ? 'Sold Out · View Songs' : `${priceLabel} · View Songs &amp; Buy`;
+  // Coming Soon takes priority over Sold Out in the unlikely case both are
+  // ever set -- a not-yet-released song being "sold out" doesn't make sense,
+  // but Coming Soon is the more informative message if it ever happens.
+  const comingSoonBanner = project.comingSoon ? '<div class="coming-soon-banner">Coming Soon</div>' : '';
+  const buyLabel = project.comingSoon
+    ? 'Coming Soon'
+    : project.soldOut
+    ? 'Sold Out · View Songs'
+    : `${priceLabel} · View Songs &amp; Buy`;
 
   const card = document.createElement('div');
 
   if (isFeatured) {
-    card.className = 'featured-card' + (project.soldOut ? ' is-sold-out' : '');
+    card.className = 'featured-card' + (project.soldOut ? ' is-sold-out' : '') + (project.comingSoon ? ' is-coming-soon' : '');
     card.innerHTML = `
-      <div class="featured-art">${art}${soldOutBanner}</div>
+      <div class="featured-art">${art}${soldOutBanner}${comingSoonBanner}</div>
       <div class="featured-body">
         <span class="featured-badge">Latest Release</span>
         <h2>${project.title}</h2>
@@ -139,9 +149,9 @@ function buildCard(project, isFeatured) {
       </div>
     `;
   } else {
-    card.className = 'card' + (project.soldOut ? ' is-sold-out' : '');
+    card.className = 'card' + (project.soldOut ? ' is-sold-out' : '') + (project.comingSoon ? ' is-coming-soon' : '');
     card.innerHTML = `
-      <div class="card-art">${art}${soldOutBanner}</div>
+      <div class="card-art">${art}${soldOutBanner}${comingSoonBanner}</div>
       <div class="card-body">
         <h3>${project.title}</h3>
         <p class="card-meta">${project.type} ${project.releaseYear ? '· ' + project.releaseYear : ''} · ${trackCountLabel}</p>
@@ -246,9 +256,11 @@ function openModal(project) {
   modalArt.alt = `${project.title} cover art`;
   modalTitle.textContent = project.title;
   const releasedTracks = project.tracks.filter((t) => t.released);
-  modalSubtitle.textContent = `${releasedTracks.length} track${releasedTracks.length === 1 ? '' : 's'}${
-    project.tracks.length > releasedTracks.length ? ` · ${project.tracks.length - releasedTracks.length} unreleased (not included)` : ''
-  }`;
+  modalSubtitle.textContent = project.comingSoon
+    ? `${project.tracks.length} track${project.tracks.length === 1 ? '' : 's'} · coming soon`
+    : `${releasedTracks.length} track${releasedTracks.length === 1 ? '' : 's'}${
+        project.tracks.length > releasedTracks.length ? ` · ${project.tracks.length - releasedTracks.length} unreleased (not included)` : ''
+      }`;
 
   renderModalTrackList(project);
 
@@ -285,17 +297,28 @@ function openModal(project) {
   // hides the email field and pay button, so there's no way to start a checkout
   // for something that can't actually be fulfilled.
   const soldOutNotice = document.getElementById('modal-sold-out-notice');
+  const comingSoonNotice = document.getElementById('modal-coming-soon-notice');
   const emailLabel = document.querySelector('.email-label');
   const finePrint = document.querySelector('.fine-print');
-  if (project.soldOut) {
+  if (project.comingSoon) {
+    modalPriceFixed.classList.add('hidden');
+    modalPricePwyw.classList.add('hidden');
+    soldOutNotice.classList.add('hidden');
+    comingSoonNotice.classList.remove('hidden');
+    emailLabel.classList.add('hidden');
+    modalPayButton.classList.add('hidden');
+    finePrint.classList.add('hidden');
+  } else if (project.soldOut) {
     modalPriceFixed.classList.add('hidden');
     modalPricePwyw.classList.add('hidden');
     soldOutNotice.classList.remove('hidden');
+    comingSoonNotice.classList.add('hidden');
     emailLabel.classList.add('hidden');
     modalPayButton.classList.add('hidden');
     finePrint.classList.add('hidden');
   } else {
     soldOutNotice.classList.add('hidden');
+    comingSoonNotice.classList.add('hidden');
     emailLabel.classList.remove('hidden');
     modalPayButton.classList.remove('hidden');
     modalPayButton.disabled = false;
@@ -319,7 +342,7 @@ modalBackdrop.addEventListener('click', (e) => {
 modalPayButton.addEventListener('click', async () => {
   modalError.classList.add('hidden');
 
-  if (currentProject.soldOut) return; // button is hidden for this case, but don't trust that alone
+  if (currentProject.soldOut || currentProject.comingSoon) return; // button is hidden for these cases, but don't trust that alone
 
   const email = modalEmail.value.trim();
   if (!/^\S+@\S+\.\S+$/.test(email)) {

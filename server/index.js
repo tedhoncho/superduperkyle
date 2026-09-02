@@ -211,6 +211,11 @@ app.post('/api/checkout', async (req, res) => {
     // could still get here — block it server-side too rather than letting
     // someone pay for something that can't actually be fulfilled.
     if (project.soldOut) return res.status(400).json({ error: 'This project is sold out.' });
+    // Same belt-and-suspenders reasoning as soldOut above: the storefront
+    // already hides the buy button for a coming-soon project, but block it
+    // server-side too in case a stale tab or direct API call gets here
+    // before Ted has actually hit "Go Live".
+    if (project.comingSoon) return res.status(400).json({ error: "This one isn't available yet — check back soon!" });
 
     const { amountCents: finalAmountCents, minCents } = catalog.priceForProject(project, amountCents);
 

@@ -207,6 +207,16 @@ if (!projectColumns.includes('display_order')) {
 if (!projectColumns.includes('sold_out')) {
   db.exec(`ALTER TABLE projects ADD COLUMN sold_out INTEGER NOT NULL DEFAULT 0`);
 }
+// --- Migration: projects.coming_soon -- lets Ted/Kyle publish a project to
+// the storefront (art, title, description all visible) before it's actually
+// buyable, e.g. showing the drop-day song ahead of time with a countdown and
+// then flipping it live by hand ("Go Live") the moment the countdown ends.
+// Independent of sold_out (opposite lifecycle stage, same "visible but can't
+// buy" UI treatment under the hood). Defaults to 0 so no existing project
+// changes behavior the moment this ships. ---
+if (!projectColumns.includes('coming_soon')) {
+  db.exec(`ALTER TABLE projects ADD COLUMN coming_soon INTEGER NOT NULL DEFAULT 0`);
+}
 
 // --- Migration: orders.order_number (short human-friendly id — SDK-YYYYMMDD-XXXX
 // — shown to fans/Ted instead of Stripe's long checkout session id). Added after
@@ -397,9 +407,9 @@ function nextProjectDisplayOrder() {
 
 function insertProject(p) {
   db.prepare(
-    `INSERT INTO projects (id, title, type, release_year, cover_art_file, pricing_mode, fixed_price_cents, pwyw_min_per_track_cents, suggested_amounts_cents, description, sold_out, display_order)
-     VALUES (@id, @title, @type, @releaseYear, @coverArtFile, @pricingMode, @fixedPriceCents, @pwywMinPerTrackCents, @suggestedAmountsCents, @description, @soldOut, @displayOrder)`
-  ).run({ soldOut: 0, ...p, displayOrder: nextProjectDisplayOrder() });
+    `INSERT INTO projects (id, title, type, release_year, cover_art_file, pricing_mode, fixed_price_cents, pwyw_min_per_track_cents, suggested_amounts_cents, description, sold_out, coming_soon, display_order)
+     VALUES (@id, @title, @type, @releaseYear, @coverArtFile, @pricingMode, @fixedPriceCents, @pwywMinPerTrackCents, @suggestedAmountsCents, @description, @soldOut, @comingSoon, @displayOrder)`
+  ).run({ soldOut: 0, comingSoon: 0, ...p, displayOrder: nextProjectDisplayOrder() });
 }
 
 function updateProject(id, fields) {
@@ -412,7 +422,7 @@ function updateProject(id, fields) {
        cover_art_file = @cover_art_file, pricing_mode = @pricing_mode,
        fixed_price_cents = @fixed_price_cents, pwyw_min_per_track_cents = @pwyw_min_per_track_cents,
        suggested_amounts_cents = @suggested_amounts_cents, description = @description,
-       sold_out = @sold_out,
+       sold_out = @sold_out, coming_soon = @coming_soon,
        updated_at = datetime('now')
      WHERE id = @id`
   ).run(merged);

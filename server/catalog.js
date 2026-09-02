@@ -41,6 +41,7 @@ function rowToProject(row) {
       .filter((n) => n !== null),
     description: row.description || '',
     soldOut: !!row.sold_out,
+    comingSoon: !!row.coming_soon,
     tracks,
   };
 }
@@ -66,7 +67,10 @@ function listAllProjects() {
 
 function listProjectsPublic() {
   return listAllProjects()
-    .filter((p) => p.tracks.some((t) => t.released)) // hide empty/all-unreleased projects from fans
+    // Hide empty/all-unreleased projects from fans -- UNLESS Ted has
+    // explicitly marked one "coming soon", in which case it's meant to be
+    // seen (browsable, not-yet-buyable) ahead of its actual release.
+    .filter((p) => p.tracks.some((t) => t.released) || p.comingSoon)
     .map((p) => ({
       id: p.id,
       title: p.title,
@@ -79,6 +83,7 @@ function listProjectsPublic() {
       suggestedAmountsCents: p.suggestedAmountsCents,
       description: p.description,
       soldOut: p.soldOut,
+      comingSoon: p.comingSoon,
       tracks: p.tracks.map((t) => ({
         id: t.id,
         trackNumber: t.trackNumber,
