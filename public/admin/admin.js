@@ -184,53 +184,136 @@ function salesQueryString() {
   return qs ? `?${qs}` : '';
 }
 
+function salesAttr(value) {
+  return String(value ?? '').replace(/"/g, '&quot;');
+}
+
+// Full, unfiltered (date-range-only) rows from the last /api/admin/sales
+// call. Column filters below run against this in memory -- no extra
+// server round trip per keystroke/selection.
+let allSalesRows = [];
+
 async function loadSales() {
   const wrap = document.getElementById('sales-table-wrap');
   wrap.innerHTML = '<p class="admin-loading">Loading…</p>';
   document.getElementById('btn-export-sales').href = `/api/admin/sales/export.csv${salesQueryString()}`;
 
   const { sales } = await api('GET', `/api/admin/sales${salesQueryString()}`);
+  allSalesRows = sales;
   renderSales(sales);
 }
 
 function renderSales(sales) {
+  const wrap = document.getElementById('sales-table-wrap');
+  if (!sales.length) {
+    document.getElementById('sales-summary').innerHTML = `
+      <div class="admin-sales-metric"><span>0</span>Sales</div>
+      <div class="admin-sales-metric"><span>${money(0)}</span>Total revenue</div>
+    `;
+    wrap.innerHTML = '<p class="admin-empty">No sales in this range yet.</p>';
+    return;
+  }
+
+  // Dropdown filters only offer values that actually appear in this date
+  // range, so Ted never picks a project/status that returns nothing.
+  const projectOptions = [...new Set(sales.map((s) => s.projectTitle))].sort();
+  const typeOptions = [...new Set(sales.map((s) => s.projectType))].sort();
+  const statusOptions = [...new Set(sales.map((s) => s.status))].sort();
+
+  wrap.innerHTML = `
+    <table class="admin-sales-table">
+      <thead>
+        <tr><th>Order #</th><th>Date</th><th>Project</th><th>Type</th><th>Customer</th><th>Amount</th><th>Status</th></tr>
+        <tr class="admin-sales-filter-row">
+          <th><input type="text" class="admin-sales-col-filter" data-col="orderNumber" placeholder="Filter…" /></th>
+          <th></th>
+          <th>
+            <select class="admin-sales-col-filter" data-col="projectTitle">
+              <option value="">All</option>
+              ${projectOptions.map((p) => `<option value="${salesAttr(p)}">${p}</option>`).join('')}
+            </select>
+          </th>
+          <th>
+            <select class="admin-sales-col-filter" data-col="projectType">
+              <option value="">All</option>
+              ${typeOptions.map((t) => `<option value="${salesAttr(t)}">${t}</option>`).join('')}
+            </select>
+          </th>
+          <th><input type="text" class="admin-sales-col-filter" data-col="email" placeholder="Filter…" /></th>
+          <th></th>
+          <th>
+            <select class="admin-sales-col-filter" data-col="status">
+              <option value="">All</option>
+              ${statusOptions.map((s) => `<option value="${salesAttr(s)}">${s}</option>`).join('')}
+            </select>
+          </th>
+        </tr>
+      </thead>
+      <tbody id="sales-table-body"></tbody>
+    </table>
+  `;
+
+  wrap.querySelectorAll('.admin-sales-col-filter').forEach((el) => {
+    el.addEventListener('input', applySalesColumnFilters);
+    el.addEventListener('change', applySalesColumnFilters);
+  });
+
+  applySalesColumnFilters();
+}
+
+// Re-filters allSalesRows using whatever's currently typed/selected in the
+// header filter row, then repaints just the summary tiles + tbody -- never
+// the thead/filter controls themselves, so typing in one box never loses
+// focus or resets what's typed in the others.
+function applySalesColumnFilters() {
+  const wrap = document.getElementById('sales-table-wrap');
+  const filters = {};
+  wrap.querySelectorAll('.admin-sales-col-filter').forEach((el) => {
+    const v = el.value.trim();
+    if (v) filters[el.dataset.col] = v.toLowerCase();
+  });
+
+  const exactMatchCols = new Set(['projectTitle', 'projectType', 'status']);
+  const filtered = allSalesRows.filter((row) =>
+    Object.entries(filters).every(([col, value]) => {
+      const cell = String(row[col] ?? '').toLowerCase();
+      return exactMatchCols.has(col) ? cell === value : cell.includes(value);
+    })
+  );
+
+  renderSalesRows(filtered);
+}
+
+function renderSalesRows(sales) {
   const totalRevenueCents = sales.reduce((sum, s) => sum + s.amountCents, 0);
   document.getElementById('sales-summary').innerHTML = `
     <div class="admin-sales-metric"><span>${sales.length}</span>Sale${sales.length === 1 ? '' : 's'}</div>
     <div class="admin-sales-metric"><span>${money(totalRevenueCents)}</span>Total revenue</div>
   `;
 
-  const wrap = document.getElementById('sales-table-wrap');
+  const tbody = document.getElementById('sales-table-body');
+  if (!tbody) return;
   if (!sales.length) {
-    wrap.innerHTML = '<p class="admin-empty">No sales in this range yet.</p>';
+    tbody.innerHTML = '<tr><td colspan="7" class="admin-empty">No sales match these filters.</td></tr>';
     return;
   }
 
-  wrap.innerHTML = `
-    <table class="admin-sales-table">
-      <thead>
-        <tr><th>Order #</th><th>Date</th><th>Project</th><th>Type</th><th>Customer</th><th>Amount</th><th>Status</th></tr>
-      </thead>
-      <tbody>
-        ${sales
-          .map((s) => {
-            const date = (s.fulfilledAt || s.createdAt || '').slice(0, 10);
-            return `
-              <tr>
-                <td>${s.orderNumber || '—'}</td>
-                <td>${date}</td>
-                <td>${s.projectTitle}</td>
-                <td>${s.projectType}</td>
-                <td>${s.email}</td>
-                <td>${money(s.amountCents)}</td>
-                <td>${s.status}</td>
-              </tr>
-            `;
-          })
-          .join('')}
-      </tbody>
-    </table>
-  `;
+  tbody.innerHTML = sales
+    .map((s) => {
+      const date = (s.fulfilledAt || s.createdAt || '').slice(0, 10);
+      return `
+        <tr>
+          <td>${s.orderNumber || '—'}</td>
+          <td>${date}</td>
+          <td>${s.projectTitle}</td>
+          <td>${s.projectType}</td>
+          <td>${s.email}</td>
+          <td>${money(s.amountCents)}</td>
+          <td>${s.status}</td>
+        </tr>
+      `;
+    })
+    .join('');
 }
 
 document.getElementById('btn-view-sales').addEventListener('click', () => {

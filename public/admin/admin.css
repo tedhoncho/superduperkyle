@@ -325,3 +325,17 @@ body { background: var(--surface-2); }
 }
 .admin-sales-table td { padding: 10px; border-bottom: 1px solid var(--surface-2); }
 .admin-sales-table tr:last-child td { border-bottom: none; }
+.admin-sales-filter-row th { padding: 4px 10px 10px; border-bottom: 1px solid var(--border); }
+.admin-sales-filter-row input,
+.admin-sales-filter-row select {
+  width: 100%;
+  font-size: 12px;
+  padding: 5px 6px;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  background: #fff;
+  color: var(--text);
+  text-transform: none;
+  letter-spacing: normal;
+  font-weight: 400;
+}
