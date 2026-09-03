@@ -634,6 +634,8 @@ async function loadLiveStatus() {
     const res = await fetch('/api/twitch-status');
     const data = await res.json();
     renderLiveBanner(data);
+    twitchChannelLogin = data.channelLogin || '';
+    updateTwitchEmbed();
   } catch (err) {
     // Non-critical, same "fail quiet" treatment as the countdown banner —
     // worst case the banner just doesn't update this cycle.
@@ -645,6 +647,42 @@ function startLiveStatusPolling() {
   loadLiveStatus();
   if (liveStatusTimer) clearInterval(liveStatusTimer);
   liveStatusTimer = setInterval(loadLiveStatus, LIVE_STATUS_POLL_MS);
+}
+
+// --- Live Twitch stream embed ---
+// Sits just under the leaderboard entries. Deliberately a manual admin
+// toggle (settings.leaderboard_stream_embed_enabled, via /api/leaderboard)
+// rather than driven off the automatic live/offline detection above -- Ted
+// wants to flip it on himself when Kyle goes live and back off when the
+// stream ends, so fans never land on a dead/offline player. Still needs the
+// channel login to know who to embed, which comes from the same
+// /api/twitch-status call that drives the banner above.
+let streamEmbedEnabled = false;
+let twitchChannelLogin = '';
+
+function updateTwitchEmbed() {
+  const section = document.getElementById('twitch-embed-section');
+  if (streamEmbedEnabled && twitchChannelLogin) {
+    // Twitch's embed player checks the `parent` param against the domain
+    // it's actually being served from -- using location.hostname keeps this
+    // working across sdkmusic.com, www.sdkmusic.com, and the Railway
+    // preview domain without hardcoding a domain list.
+    section.innerHTML = `
+      <div class="twitch-embed-wrap">
+        <iframe
+          title="${twitchChannelLogin} live on Twitch"
+          src="https://player.twitch.tv/?channel=${encodeURIComponent(twitchChannelLogin)}&parent=${location.hostname}&muted=true"
+          allowfullscreen
+          loading="lazy"
+        ></iframe>
+      </div>
+      <a class="twitch-embed-link" href="https://twitch.tv/${encodeURIComponent(twitchChannelLogin)}" target="_blank" rel="noopener">Watch on Twitch &#8599;</a>
+    `;
+    section.classList.remove('hidden');
+  } else {
+    section.classList.add('hidden');
+    section.innerHTML = '';
+  }
 }
 
 async function load() {
@@ -669,6 +707,9 @@ async function load() {
     }
 
     if (data.spotifyPlaylistId) renderSpotifyFooter(data.spotifyPlaylistId);
+
+    streamEmbedEnabled = !!data.streamEmbedEnabled;
+    updateTwitchEmbed();
   } catch (err) {
     mainEl.innerHTML = '<p class="loading">Could not load the leaderboard right now.</p>';
   }

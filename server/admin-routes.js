@@ -178,6 +178,7 @@ function settingsToJson(row) {
     leaderboardThumbsLimitOne: !!row.leaderboard_thumbs_limit_one,
     leaderboardContestRound: row.leaderboard_contest_round || 'pool',
     leaderboardShowHonorableMentions: !!row.leaderboard_show_honorable_mentions,
+    leaderboardStreamEmbedEnabled: !!row.leaderboard_stream_embed_enabled,
   };
 }
 
@@ -245,6 +246,10 @@ router.put('/settings', (req, res) => {
     req.body.leaderboardShowHonorableMentions !== undefined
       ? req.body.leaderboardShowHonorableMentions === true || req.body.leaderboardShowHonorableMentions === 'true'
       : !!current.leaderboard_show_honorable_mentions;
+  const leaderboardStreamEmbedEnabled =
+    req.body.leaderboardStreamEmbedEnabled !== undefined
+      ? req.body.leaderboardStreamEmbedEnabled === true || req.body.leaderboardStreamEmbedEnabled === 'true'
+      : !!current.leaderboard_stream_embed_enabled;
 
   let spotifyPlaylistId = current.spotify_playlist_id || '';
   if (req.body.spotifyPlaylistLink !== undefined) {
@@ -278,6 +283,7 @@ router.put('/settings', (req, res) => {
     leaderboardThumbsLimitOne,
     leaderboardContestRound,
     leaderboardShowHonorableMentions,
+    leaderboardStreamEmbedEnabled,
   });
   res.json({ settings: settingsToJson(settings) });
 });

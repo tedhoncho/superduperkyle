@@ -155,6 +155,12 @@ const settingsMigrations = {
   // change the moment this ships — Ted turns it off later for a contest
   // where he'd rather non-advancing picks just disappear from public view.
   leaderboard_show_honorable_mentions: `ALTER TABLE settings ADD COLUMN leaderboard_show_honorable_mentions INTEGER NOT NULL DEFAULT 1`,
+  // Manual on/off for embedding Kyle's live Twitch stream just under the
+  // leaderboard entries. Deliberately independent of the automatic
+  // live/offline detection in server/twitch.js -- Ted flips this himself
+  // when he goes live and back off after, so fans never land on a dead
+  // player between streams. Defaults to 0 (off).
+  leaderboard_stream_embed_enabled: `ALTER TABLE settings ADD COLUMN leaderboard_stream_embed_enabled INTEGER NOT NULL DEFAULT 0`,
 };
 for (const [column, sql] of Object.entries(settingsMigrations)) {
   if (!settingsColumns.includes(column)) db.exec(sql);
@@ -317,6 +323,7 @@ function updateSettings({
   leaderboardThumbsLimitOne,
   leaderboardContestRound,
   leaderboardShowHonorableMentions,
+  leaderboardStreamEmbedEnabled,
 }) {
   const validRounds = ['pool', 'top10', 'top3', 'winner'];
   db.prepare(
@@ -335,7 +342,8 @@ function updateSettings({
        leaderboard_thumbs_enabled = ?,
        leaderboard_thumbs_limit_one = ?,
        leaderboard_contest_round = ?,
-       leaderboard_show_honorable_mentions = ?
+       leaderboard_show_honorable_mentions = ?,
+       leaderboard_stream_embed_enabled = ?
      WHERE id = 1`
   ).run(
     saleNotificationEmails,
@@ -352,7 +360,8 @@ function updateSettings({
     leaderboardThumbsEnabled ? 1 : 0,
     leaderboardThumbsLimitOne ? 1 : 0,
     validRounds.includes(leaderboardContestRound) ? leaderboardContestRound : 'pool',
-    leaderboardShowHonorableMentions ? 1 : 0
+    leaderboardShowHonorableMentions ? 1 : 0,
+    leaderboardStreamEmbedEnabled ? 1 : 0
   );
   return getSettings();
 }

@@ -675,6 +675,7 @@ async function loadLeaderboardSettings() {
     : 'pool';
   document.querySelector(`input[name="leaderboardContestRound"][value="${contestRound}"]`).checked = true;
   document.getElementById('field-leaderboard-honorable-mentions').checked = !!settings.leaderboardShowHonorableMentions;
+  document.getElementById('field-leaderboard-stream-embed').checked = !!settings.leaderboardStreamEmbedEnabled;
 }
 
 document.getElementById('btn-view-leaderboard').addEventListener('click', () => {
@@ -706,6 +707,7 @@ document.getElementById('btn-save-leaderboard-settings').addEventListener('click
       leaderboardThumbsLimitOne: document.getElementById('field-leaderboard-thumbs-limit-one').checked,
       leaderboardContestRound: document.querySelector('input[name="leaderboardContestRound"]:checked').value,
       leaderboardShowHonorableMentions: document.getElementById('field-leaderboard-honorable-mentions').checked,
+      leaderboardStreamEmbedEnabled: document.getElementById('field-leaderboard-stream-embed').checked,
     });
     successEl.classList.remove('hidden');
   } catch (err) {

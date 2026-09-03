@@ -55,6 +55,13 @@
     <p class="loading">Loading…</p>
   </main>
 
+  <!-- Kyle's live Twitch stream, embedded just under the leaderboard
+       entries. Manual toggle only (admin Leaderboard tab) -- see
+       updateTwitchEmbed() in leaderboard.js. Built via JS once we know both
+       the toggle state (/api/leaderboard) and the channel to embed
+       (/api/twitch-status), same pattern as the Spotify footer below. -->
+  <div id="twitch-embed-section" class="twitch-embed-section hidden"></div>
+
   <div id="spotify-footer" class="spotify-footer hidden"></div>
 
   <script src="/leaderboard.js"></script>

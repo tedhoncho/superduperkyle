@@ -152,6 +152,7 @@ app.get('/api/leaderboard', (req, res) => {
     thumbsLimitOne,
     contestRound: settings.leaderboard_contest_round || 'pool',
     showHonorableMentions: !!settings.leaderboard_show_honorable_mentions,
+    streamEmbedEnabled: !!settings.leaderboard_stream_embed_enabled,
   });
 });
 

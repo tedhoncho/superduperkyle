@@ -175,6 +175,13 @@
         <input type="text" id="field-spotify-playlist" placeholder="https://open.spotify.com/playlist/..." />
       </label>
 
+      <h2 style="margin-top: 24px;">Live stream embed</h2>
+      <p class="admin-hint">Embeds Kyle's live Twitch stream just under the leaderboard entries. This is a manual switch, not tied to the automatic live-detection above -- turn it on when he goes live, and back off when the stream ends, so fans never land on a dead player between streams.</p>
+      <label class="admin-checkbox">
+        <input type="checkbox" id="field-leaderboard-stream-embed" />
+        Show the live stream embed on the leaderboard page
+      </label>
+
       <p id="leaderboard-settings-error" class="admin-error hidden"></p>
       <p id="leaderboard-settings-success" class="admin-hint hidden" style="color: var(--accent);">Saved.</p>
       <button id="btn-save-leaderboard-settings" class="admin-btn-primary">Save</button>
