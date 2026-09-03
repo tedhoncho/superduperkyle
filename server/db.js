@@ -7,6 +7,7 @@
 const fs = require('fs');
 const path = require('path');
 const Database = require('better-sqlite3');
+const { v4: uuidv4 } = require('uuid');
 
 const DB_PATH = path.join(__dirname, '..', 'data', 'db', 'store.sqlite3');
 // better-sqlite3 won't create a missing parent folder itself — it just
@@ -283,6 +284,31 @@ if (!orderColumns.includes('order_number')) {
   }
 }
 
+// --- Migration: orders.reminder_sent_at -- tracks whether an abandoned-
+// checkout reminder email has already gone out for this order, so the sweep
+// in server/index.js never emails the same pending order twice. NULL = not
+// sent yet; only meaningful while status is still 'pending'. ---
+if (!orderColumns.includes('reminder_sent_at')) {
+  db.exec(`ALTER TABLE orders ADD COLUMN reminder_sent_at TEXT`);
+}
+
+// --- New table: notify_signups -- fans who left their email on a Coming
+// Soon project asking to be told the moment it's buyable. One row per
+// (project, email) pair; UNIQUE stops a fan queuing up duplicate signups
+// (and duplicate "it's live!" emails) if they submit the form twice.
+// notified_at stays NULL until the go-live blast in admin-routes.js
+// actually sends them the buy-link email. ---
+db.exec(`
+CREATE TABLE IF NOT EXISTS notify_signups (
+  id TEXT PRIMARY KEY,
+  project_id TEXT NOT NULL,
+  email TEXT NOT NULL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  notified_at TEXT,
+  UNIQUE(project_id, email)
+);
+`);
+
 function createOrder({ id, projectId, email, amountCents, currency }) {
   db.prepare(
     `INSERT OR IGNORE INTO orders (id, order_number, project_id, email, amount_cents, currency, status)
@@ -298,6 +324,29 @@ function markOrderFulfilled(id) {
   db.prepare(
     `UPDATE orders SET status = 'fulfilled', fulfilled_at = datetime('now') WHERE id = ?`
   ).run(id);
+}
+
+// Abandoned-checkout recovery: orders that are still 'pending' (fan started
+// Stripe Checkout but never finished paying), old enough that they've
+// genuinely wandered off (not just mid-checkout right now), young enough
+// that the original Stripe session is still safely inside its ~24h expiry
+// window, and haven't had a reminder sent yet. minAgeHours/maxAgeHours are
+// both in hours -- the sweep in server/index.js picks the actual window
+// (see ABANDONED_MIN_AGE_HOURS/ABANDONED_MAX_AGE_HOURS there).
+function listAbandonedOrders({ minAgeHours, maxAgeHours }) {
+  return db
+    .prepare(
+      `SELECT * FROM orders
+       WHERE status = 'pending'
+         AND reminder_sent_at IS NULL
+         AND created_at <= datetime('now', ?)
+         AND created_at >= datetime('now', ?)`
+    )
+    .all(`-${minAgeHours} hours`, `-${maxAgeHours} hours`);
+}
+
+function markOrderReminderSent(id) {
+  db.prepare(`UPDATE orders SET reminder_sent_at = datetime('now') WHERE id = ?`).run(id);
 }
 
 function getSettings() {
@@ -433,6 +482,40 @@ function decrementTokenUse(token) {
   db.prepare(
     `UPDATE download_tokens SET uses_remaining = uses_remaining - 1 WHERE token = ? AND uses_remaining > 0`
   ).run(token);
+}
+
+// --- Notify me: Coming Soon email signups ---
+
+// INSERT OR IGNORE relies on the UNIQUE(project_id, email) constraint --
+// resubmitting the same email on the same project is a silent no-op rather
+// than a duplicate row (and a duplicate "it's live!" email later). Returns
+// true only when this was a genuinely new signup, so the route can tell a
+// fan "you're already on the list" instead of pretending it just worked.
+function addNotifySignup({ projectId, email }) {
+  const result = db
+    .prepare(`INSERT OR IGNORE INTO notify_signups (id, project_id, email) VALUES (?, ?, ?)`)
+    .run(uuidv4(), projectId, email);
+  return result.changes > 0;
+}
+
+// Everyone still waiting to hear about this project going live -- used by
+// the go-live email blast in admin-routes.js.
+function listPendingNotifySignups(projectId) {
+  return db.prepare(`SELECT * FROM notify_signups WHERE project_id = ? AND notified_at IS NULL`).all(projectId);
+}
+
+// How many fans are waiting on this Coming Soon project -- available for
+// the admin UI to surface demand before a project goes live.
+function countPendingNotifySignups(projectId) {
+  return db
+    .prepare(`SELECT COUNT(*) AS n FROM notify_signups WHERE project_id = ? AND notified_at IS NULL`)
+    .get(projectId).n;
+}
+
+function markNotifySignupsNotified(projectId) {
+  db.prepare(
+    `UPDATE notify_signups SET notified_at = datetime('now') WHERE project_id = ? AND notified_at IS NULL`
+  ).run(projectId);
 }
 
 // --- Catalog: projects ---
@@ -702,6 +785,8 @@ module.exports = {
   createOrder,
   markOrderPaid,
   markOrderFulfilled,
+  listAbandonedOrders,
+  markOrderReminderSent,
   getSettings,
   updateSettings,
   getOrder,
@@ -710,6 +795,10 @@ module.exports = {
   getTokensForOrder,
   getToken,
   decrementTokenUse,
+  addNotifySignup,
+  listPendingNotifySignups,
+  countPendingNotifySignups,
+  markNotifySignupsNotified,
   listLeaderboardEntriesForAdmin,
   listLeaderboardEntriesPublic,
   getLeaderboardEntryRow,

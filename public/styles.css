@@ -413,6 +413,10 @@ body {
 .modal-error { color: var(--danger); font-size: 13px; margin-top: 10px; }
 .fine-print { color: var(--text-dim); font-size: 11px; text-align: center; margin-top: 14px; }
 
+.notify-form { margin: 0 0 16px; }
+.notify-form .email-label { margin-bottom: 10px; }
+.notify-status { font-size: 13px; color: var(--text-dim); text-align: center; margin: 8px 0 0; }
+
 .hidden { display: none; }
 
 /* --- Feature Contest leaderboard --- */

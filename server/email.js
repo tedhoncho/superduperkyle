@@ -111,4 +111,62 @@ async function sendSaleNotification({ artistName, projectTitle, amountCents, cur
   return result;
 }
 
-module.exports = { sendDownloadEmail, sendSaleNotification };
+// Sent when a fan starts Stripe Checkout but never finishes paying. Reuses
+// the original Stripe-hosted checkout URL rather than minting a new session
+// -- the caller (server/index.js) only invokes this while that session is
+// still safely inside Stripe's ~24h expiry window, so the link is
+// guaranteed to still work.
+async function sendAbandonedCheckoutEmail({ to, artistName, projectTitle, checkoutUrl, amountCents, currency }) {
+  if (!resend) {
+    console.warn('[email] RESEND_API_KEY not set — skipping abandoned-checkout reminder. Would have sent to:', to);
+    return { skipped: true };
+  }
+
+  const amount = new Intl.NumberFormat('en-US', { style: 'currency', currency: (currency || 'usd').toUpperCase() }).format(
+    (amountCents || 0) / 100
+  );
+
+  return resend.emails.send({
+    from: process.env.EMAIL_FROM || `${artistName} <onboarding@resend.dev>`,
+    to,
+    subject: `You left ${projectTitle} in your cart`,
+    html: `
+      <div style="font-family:sans-serif;max-width:480px;margin:0 auto;">
+        <h2 style="margin-bottom:4px;">Still want ${escapeHtml(projectTitle)}?</h2>
+        <p style="color:#555;">Looks like you started checking out (${amount}) but didn't finish. Your cart's still saved — pick up right where you left off:</p>
+        <p style="margin:16px 0;">
+          <a href="${checkoutUrl}" style="display:inline-block;padding:12px 20px;background:#eb66ae;color:#fff;font-weight:700;text-decoration:none;border-radius:8px;">Finish checkout &rarr;</a>
+        </p>
+        <p style="color:#888;font-size:13px;">If you already paid or changed your mind, no action needed — you can ignore this email.</p>
+      </div>
+    `,
+  });
+}
+
+// Sent to a fan who left their email on a Coming Soon project once Ted hits
+// "Go Live". Called once per signup (in a loop, from admin-routes.js) since
+// Resend takes one `to` per call the same way sendDownloadEmail/
+// sendSaleNotification already do it elsewhere.
+async function sendProjectLiveEmail({ to, artistName, projectTitle, buyUrl }) {
+  if (!resend) {
+    console.warn('[email] RESEND_API_KEY not set — skipping "now live" notify email. Would have sent to:', to);
+    return { skipped: true };
+  }
+
+  return resend.emails.send({
+    from: process.env.EMAIL_FROM || `${artistName} <onboarding@resend.dev>`,
+    to,
+    subject: `${projectTitle} is out now!`,
+    html: `
+      <div style="font-family:sans-serif;max-width:480px;margin:0 auto;">
+        <h2 style="margin-bottom:4px;">${escapeHtml(projectTitle)} just dropped &#127881;</h2>
+        <p style="color:#555;">You asked to be notified the moment it was available — it's live now.</p>
+        <p style="margin:16px 0;">
+          <a href="${buyUrl}" style="display:inline-block;padding:12px 20px;background:#eb66ae;color:#fff;font-weight:700;text-decoration:none;border-radius:8px;">Get it now &rarr;</a>
+        </p>
+      </div>
+    `,
+  });
+}
+
+module.exports = { sendDownloadEmail, sendSaleNotification, sendAbandonedCheckoutEmail, sendProjectLiveEmail };

@@ -13,6 +13,10 @@ const modalAmountInput = document.getElementById('modal-amount-input');
 const modalEmail = document.getElementById('modal-email');
 const modalPayButton = document.getElementById('modal-pay-button');
 const modalError = document.getElementById('modal-error');
+const modalNotifyForm = document.getElementById('modal-notify-form');
+const modalNotifyEmail = document.getElementById('modal-notify-email');
+const modalNotifyButton = document.getElementById('modal-notify-button');
+const modalNotifyStatus = document.getElementById('modal-notify-status');
 
 let currentProject = null;
 let currentAudio = null;
@@ -254,6 +258,10 @@ function openModal(project) {
   currentProject = project;
   modalError.classList.add('hidden');
   modalEmail.value = '';
+  modalNotifyEmail.value = '';
+  modalNotifyStatus.classList.add('hidden');
+  modalNotifyButton.disabled = false;
+  modalNotifyButton.textContent = 'Notify me';
 
   modalArt.src = project.coverArtFile ? `/art/${project.coverArtFile}` : '';
   modalArt.alt = `${project.title} cover art`;
@@ -310,6 +318,7 @@ function openModal(project) {
     comingSoonNotice.classList.remove('hidden');
     emailLabel.classList.add('hidden');
     modalPayButton.classList.add('hidden');
+    modalNotifyForm.classList.remove('hidden');
     finePrint.classList.add('hidden');
   } else if (project.soldOut) {
     modalPriceFixed.classList.add('hidden');
@@ -318,6 +327,7 @@ function openModal(project) {
     comingSoonNotice.classList.add('hidden');
     emailLabel.classList.add('hidden');
     modalPayButton.classList.add('hidden');
+    modalNotifyForm.classList.add('hidden');
     finePrint.classList.add('hidden');
   } else {
     soldOutNotice.classList.add('hidden');
@@ -326,6 +336,7 @@ function openModal(project) {
     modalPayButton.classList.remove('hidden');
     modalPayButton.disabled = false;
     modalPayButton.textContent = 'Continue to payment';
+    modalNotifyForm.classList.add('hidden');
     finePrint.classList.remove('hidden');
   }
 
@@ -382,6 +393,40 @@ modalPayButton.addEventListener('click', async () => {
     modalError.classList.remove('hidden');
     modalPayButton.disabled = false;
     modalPayButton.textContent = 'Continue to payment';
+  }
+});
+
+modalNotifyButton.addEventListener('click', async () => {
+  modalNotifyStatus.classList.add('hidden');
+  const email = modalNotifyEmail.value.trim();
+  if (!/^\S+@\S+\.\S+$/.test(email)) {
+    modalNotifyStatus.textContent = 'Enter a valid email address.';
+    modalNotifyStatus.classList.remove('hidden');
+    return;
+  }
+
+  modalNotifyButton.disabled = true;
+  modalNotifyButton.textContent = 'Saving…';
+
+  try {
+    const res = await fetch('/api/notify-me', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ projectId: currentProject.id, email }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Something went wrong.');
+    modalNotifyStatus.textContent = data.alreadySignedUp
+      ? "You're already on the list — we'll email you the moment it's out."
+      : "You're on the list! We'll email you the moment it's out.";
+    modalNotifyStatus.classList.remove('hidden');
+    modalNotifyButton.textContent = 'Notify me';
+    modalNotifyEmail.value = '';
+  } catch (err) {
+    modalNotifyStatus.textContent = err.message;
+    modalNotifyStatus.classList.remove('hidden');
+    modalNotifyButton.disabled = false;
+    modalNotifyButton.textContent = 'Notify me';
   }
 });
 

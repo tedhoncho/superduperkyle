@@ -9,6 +9,7 @@ const { checkPassword, requireAuth } = require('./auth');
 const { audioUpload, imageUpload, extOf, AUDIO_DIR, ART_DIR, SUBMISSION_AUDIO_DIR } = require('./uploads');
 const { getDurationSeconds, generatePreviewClip } = require('./media');
 const { slugId } = require('./ids');
+const { sendProjectLiveEmail } = require('./email');
 
 const router = express.Router();
 
@@ -106,6 +107,36 @@ router.post('/projects', (req, res) => {
   res.json({ project: catalog.getProject(id) });
 });
 
+// Emails everyone who left their email on this project while it was Coming
+// Soon, now that Ted has flipped it live -- one send per signup (Resend's
+// API takes one `to` per call, the same way sendDownloadEmail/
+// sendSaleNotification already do it elsewhere, so this loops rather than
+// batching). Marks every signup notified right away so a retry of this same
+// PUT (or a slow email provider) can never double-send.
+async function notifySignupsProjectWentLive(projectId) {
+  const signups = db.listPendingNotifySignups(projectId);
+  if (!signups.length) return;
+
+  const project = catalog.getProject(projectId);
+  if (!project) return;
+
+  const baseUrl = process.env.BASE_URL || 'http://localhost:4242';
+  db.markNotifySignupsNotified(projectId);
+
+  for (const signup of signups) {
+    try {
+      await sendProjectLiveEmail({
+        to: signup.email,
+        artistName: process.env.ARTIST_NAME || 'The Artist',
+        projectTitle: project.title,
+        buyUrl: baseUrl,
+      });
+    } catch (err) {
+      console.error('[admin] go-live email failed for', signup.email, err.message);
+    }
+  }
+}
+
 router.put('/projects/:id', (req, res) => {
   const existing = db.getProjectRow(req.params.id);
   if (!existing) return res.status(404).json({ error: 'Project not found.' });
@@ -119,7 +150,20 @@ router.put('/projects/:id', (req, res) => {
     return res.status(400).json({ error: 'Set a minimum price per song.' });
   }
 
+  // Detect the exact moment a Coming Soon project goes live (the admin
+  // "Go Live" button in admin.js is just this same generic update with
+  // comingSoon: false) so every fan who signed up for a notify-me alert
+  // gets emailed the buy link.
+  const wentLive = existing.coming_soon === 1 && fields.coming_soon === 0;
+
   db.updateProject(req.params.id, fields);
+
+  if (wentLive) {
+    notifySignupsProjectWentLive(req.params.id).catch((err) => {
+      console.error('[admin] go-live notify blast failed for project', req.params.id, err.message);
+    });
+  }
+
   res.json({ project: catalog.getProject(req.params.id) });
 });
 
