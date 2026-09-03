@@ -223,7 +223,7 @@ function renderSales(sales) {
   wrap.innerHTML = `
     <table class="admin-sales-table">
       <thead>
-        <tr><th>Order #</th><th>Date</th><th>Project</th><th>Type</th><th>Customer</th><th>Amount</th><th>Status</th></tr>
+        <tr><th>Order #</th><th>Date &amp; time</th><th>Project</th><th>Type</th><th>Customer</th><th>Amount</th><th>Status</th></tr>
         <tr class="admin-sales-filter-row">
           <th><input type="text" class="admin-sales-col-filter" data-col="orderNumber" placeholder="Filter…" /></th>
           <th></th>
@@ -300,7 +300,7 @@ function renderSalesRows(sales) {
 
   tbody.innerHTML = sales
     .map((s) => {
-      const date = (s.fulfilledAt || s.createdAt || '').slice(0, 10);
+      const date = formatDateTime(s.fulfilledAt || s.createdAt);
       return `
         <tr>
           <td>${s.orderNumber || '—'}</td>
@@ -346,9 +346,15 @@ document.getElementById('btn-sales-subtab-completed').addEventListener('click', 
 document.getElementById('btn-sales-subtab-pending').addEventListener('click', () => showSalesSubtab('pending'));
 
 // SQLite's datetime('now') stores UTC with no timezone suffix (e.g.
-// "2026-09-03 14:22:00") -- appending Z makes JS parse it as UTC instead of
-// silently treating it as local time, which would make every age wrong by
-// whatever the visitor's UTC offset is.
+// "2026-09-03 14:22:00") -- appending Z makes JS parse it correctly instead
+// of silently misreading it as local time. Renders in the viewing browser's
+// own locale/timezone, date and time both.
+function formatDateTime(sqliteDateStr) {
+  if (!sqliteDateStr) return '—';
+  const d = new Date(`${sqliteDateStr.replace(' ', 'T')}Z`);
+  return `${d.toLocaleDateString()} ${d.toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}`;
+}
+
 function timeAgo(sqliteDateStr) {
   const ms = Date.now() - new Date(`${sqliteDateStr.replace(' ', 'T')}Z`).getTime();
   const hours = Math.floor(ms / 3600000);
