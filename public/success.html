@@ -56,6 +56,28 @@
           <p>Thanks for supporting <strong>${data.projectTitle}</strong>. Your download links are ready below, and we've also emailed them to <strong>${data.email}</strong>.</p>
           <ul class="download-list">${links}</ul>
         `;
+
+        // Report the completed sale to GA4 so revenue can be attributed
+        // back to whatever channel brought this buyer in -- not just the
+        // pageview. Guarded so refreshing this page (or coming back to it)
+        // never reports the same order twice.
+        const reportedKey = `ga_purchase_reported_${sessionId}`;
+        if (typeof gtag === 'function' && !sessionStorage.getItem(reportedKey)) {
+          gtag('event', 'purchase', {
+            transaction_id: data.orderId || sessionId,
+            value: (data.amountCents || 0) / 100,
+            currency: (data.currency || 'usd').toUpperCase(),
+            items: [
+              {
+                item_id: data.projectId,
+                item_name: data.projectTitle,
+                price: (data.amountCents || 0) / 100,
+                quantity: 1,
+              },
+            ],
+          });
+          sessionStorage.setItem(reportedKey, '1');
+        }
       } catch (err) {
         content.innerHTML = '<p>Something went wrong confirming your order. Check your email for your download links, or contact support.</p>';
       }

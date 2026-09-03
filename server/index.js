@@ -299,8 +299,12 @@ app.get('/api/session/:sessionId', async (req, res) => {
     const project = catalog.getProject(result.order.project_id);
     res.json({
       paid: true,
+      projectId: result.order.project_id,
       projectTitle: project.title,
       email: result.order.email,
+      orderId: result.order.order_number,
+      amountCents: result.order.amount_cents,
+      currency: result.order.currency,
       downloads: result.tokens.map(({ token, track }) => ({
         trackTitle: track.title,
         url: `/api/download/${token}`,
