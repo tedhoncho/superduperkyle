@@ -15,6 +15,7 @@ function renderClosed() {
       <h2>Nothing to see here right now</h2>
       <p>Check back soon, or follow along on stream for what's next.</p>
     </div>
+    ${TWITCH_EMBED_PLACEHOLDER_HTML}
   `;
 }
 
@@ -309,7 +310,7 @@ function renderEntries(sortMode, entries, heading, subheading, thumbsEnabled, th
   const headingHtml = `<h1>${escapeHtml(heading)}</h1>${subheading ? `<p class="leaderboard-sub">${escapeHtml(subheading)}</p>` : ''}`;
 
   if (!entries.length) {
-    mainEl.innerHTML = `${headingHtml}${renderCriteriaBanner()}<p class="loading">No picks yet — check back after the next stream.</p>`;
+    mainEl.innerHTML = `${headingHtml}${TWITCH_EMBED_PLACEHOLDER_HTML}${renderCriteriaBanner()}<p class="loading">No picks yet — check back after the next stream.</p>`;
     return;
   }
 
@@ -353,7 +354,7 @@ function renderEntries(sortMode, entries, heading, subheading, thumbsEnabled, th
   const honorableHtml =
     contestRound !== 'pool' && showHonorableMentions ? renderHonorableMentions(honorable, entryOpts) : '';
 
-  mainEl.innerHTML = `${headingHtml}${statsHtml}${renderCriteriaBanner()}${roundStatusHtml}${winnerHeroHtml}${inRunningHtml}${honorableHtml}`;
+  mainEl.innerHTML = `${headingHtml}${statsHtml}${TWITCH_EMBED_PLACEHOLDER_HTML}${renderCriteriaBanner()}${roundStatusHtml}${winnerHeroHtml}${inRunningHtml}${honorableHtml}`;
   maybeLaunchConfetti(winnerEntry);
 }
 
@@ -638,9 +639,16 @@ function startLiveStatusPolling() {
 // /api/twitch-status call that drives the banner above.
 let streamEmbedEnabled = false;
 let twitchChannelLogin = '';
+// Rendered right under the Picks So Far / SMYLE Faces stats card (the
+// "scoreboard") by renderEntries()/renderClosed() below -- not a fixed
+// spot in leaderboard.html, since that stats card only exists once the
+// page actually renders (and doesn't exist at all in the closed/empty
+// states, where this still gets appended near the top).
+const TWITCH_EMBED_PLACEHOLDER_HTML = '<div id="twitch-embed-section" class="twitch-embed-section hidden"></div>';
 
 function updateTwitchEmbed() {
   const section = document.getElementById('twitch-embed-section');
+  if (!section) return;
   if (streamEmbedEnabled && twitchChannelLogin) {
     // Twitch's embed player checks the `parent` param against the domain
     // it's actually being served from -- using location.hostname keeps this
