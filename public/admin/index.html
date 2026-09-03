@@ -207,6 +207,16 @@
           <input type="text" id="field-lb-link" placeholder="Link to the submission or clip" />
         </label>
       </div>
+      <label class="admin-field" style="margin-top: 12px;">
+        Song mp3 (optional)
+        <input type="file" id="field-lb-audio" accept=".mp3,.wav,.flac,.m4a,.aac,.ogg,.wma" />
+      </label>
+      <p class="admin-hint">Fans get a small play button on the leaderboard that streams this file directly, full length, with no download link. If both a link and an mp3 are set, the play button uses the mp3 -- the link still shows fans where the submission came from. Leave this blank to have the play button just open the link instead.</p>
+      <p id="lb-current-audio" class="admin-hint hidden"></p>
+      <label id="lb-remove-audio-row" class="admin-checkbox hidden">
+        <input type="checkbox" id="field-lb-remove-audio" />
+        Remove the current audio file
+      </label>
       <p id="leaderboard-entry-error" class="admin-error hidden"></p>
       <button id="btn-save-lb-entry" class="admin-btn-primary">Add to leaderboard</button>
       <button id="btn-cancel-lb-entry" class="admin-btn-ghost hidden">Cancel edit</button>
@@ -216,6 +226,51 @@
       <h2>Entries</h2>
       <div id="leaderboard-list" class="admin-project-list">
         <p class="admin-loading">Loading…</p>
+      </div>
+    </section>
+
+    <section class="admin-panel admin-danger-zone" style="margin-top: 20px;">
+      <h2>Danger Zone</h2>
+      <p class="admin-hint">Submission mp3s live in their own separate storage, outside the database and file system that hold the songs Kyle sells -- nothing here can touch or delete anything in the store. Use this after a contest wraps to free up space.</p>
+
+      <div class="admin-danger-action">
+        <div>
+          <h3>Clear all submission audio</h3>
+          <p class="admin-hint">Deletes every uploaded mp3 to free storage. Entries, links, votes, and winner/round history are untouched.</p>
+        </div>
+        <button id="btn-open-clear-audio" class="admin-btn-ghost admin-btn-danger">Clear all audio&hellip;</button>
+      </div>
+      <div id="clear-audio-panel" class="admin-danger-confirm hidden">
+        <p id="clear-audio-stats" class="admin-hint"></p>
+        <label class="admin-field">
+          Type <strong>CLEAR AUDIO</strong> to confirm
+          <input type="text" id="field-clear-audio-phrase" autocomplete="off" />
+        </label>
+        <p id="clear-audio-error" class="admin-error hidden"></p>
+        <div class="admin-project-row-actions">
+          <button id="btn-cancel-clear-audio" class="admin-btn-ghost">Cancel</button>
+          <button id="btn-confirm-clear-audio" class="admin-btn-primary admin-btn-danger-solid">Clear audio</button>
+        </div>
+      </div>
+
+      <div class="admin-danger-action">
+        <div>
+          <h3>Delete all entries</h3>
+          <p class="admin-hint">Deletes every submission entirely -- artist, title, link, votes, winner/round history, and audio. Nothing is kept. For wiping the board completely to start a new contest from scratch.</p>
+        </div>
+        <button id="btn-open-delete-all" class="admin-btn-ghost admin-btn-danger">Delete all entries&hellip;</button>
+      </div>
+      <div id="delete-all-panel" class="admin-danger-confirm hidden">
+        <p id="delete-all-stats" class="admin-hint"></p>
+        <label class="admin-field">
+          Type <strong>DELETE ALL ENTRIES</strong> to confirm
+          <input type="text" id="field-delete-all-phrase" autocomplete="off" />
+        </label>
+        <p id="delete-all-error" class="admin-error hidden"></p>
+        <div class="admin-project-row-actions">
+          <button id="btn-cancel-delete-all" class="admin-btn-ghost">Cancel</button>
+          <button id="btn-confirm-delete-all" class="admin-btn-primary admin-btn-danger-solid">Delete everything</button>
+        </div>
       </div>
     </section>
   </div>

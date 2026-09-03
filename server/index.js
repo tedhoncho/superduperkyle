@@ -135,6 +135,7 @@ app.get('/api/leaderboard', (req, res) => {
         songTitle: row.song_title,
         streamDate: row.stream_date,
         link: row.link || '',
+        audioUrl: row.audio_file ? `/api/leaderboard-audio/${row.id}` : '',
         isWinner: !!row.is_winner,
         thumbsCount: row.thumbs_count,
         round: row.round || 'pool',
@@ -191,6 +192,21 @@ app.get('/api/preview/:projectId/:trackId', (req, res) => {
   const track = catalog.getTrack(req.params.projectId, req.params.trackId);
   if (!track || !track.previewAudioFile) return res.status(404).end();
   const filePath = path.join(__dirname, '..', 'data', 'audio', track.previewAudioFile);
+  if (!fs.existsSync(filePath)) return res.status(404).end();
+  res.sendFile(filePath);
+});
+
+// Streams a Feature Contest submission's mp3 (admin Leaderboard tab). Full
+// file, not a clipped preview -- these are fan submissions, not products,
+// so Kyle wants the whole thing playable when someone comes back to vote.
+// Same "no visible download UI" treatment as the preview route above: the
+// client plays this through a bare Audio() object, no native player, no
+// download link. Reads only from data/submission-audio/ -- never
+// data/audio/ -- so this route can never expose a real purchasable master.
+app.get('/api/leaderboard-audio/:id', (req, res) => {
+  const entry = db.getLeaderboardEntryRow(req.params.id);
+  if (!entry || !entry.audio_file) return res.status(404).end();
+  const filePath = path.join(__dirname, '..', 'data', 'submission-audio', entry.audio_file);
   if (!fs.existsSync(filePath)) return res.status(404).end();
   res.sendFile(filePath);
 });

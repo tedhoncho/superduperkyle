@@ -190,6 +190,20 @@ if (!leaderboardRoundColumns.includes('stream_top_pick')) {
   db.exec(`ALTER TABLE leaderboard_entries ADD COLUMN stream_top_pick INTEGER NOT NULL DEFAULT 0`);
 }
 
+// --- Migration: leaderboard_entries.audio_file -- the mp3 Kyle can attach
+// to a submission so fans have something to actually listen to when they
+// come back to vote (they don't remember songs by artist/title alone). Just
+// a filename, same idea as tracks.audio_file -- the bytes live in
+// data/submission-audio/ (server/uploads.js), a directory kept deliberately
+// separate from data/audio/ (real purchasable masters) so the admin
+// "Danger Zone" bulk-clear (server/admin-routes.js) can never risk touching
+// paid product files. NULL = no mp3 attached, falls back to the `link`
+// field on the public page. ---
+const leaderboardAudioColumns = db.prepare(`PRAGMA table_info(leaderboard_entries)`).all().map((c) => c.name);
+if (!leaderboardAudioColumns.includes('audio_file')) {
+  db.exec(`ALTER TABLE leaderboard_entries ADD COLUMN audio_file TEXT`);
+}
+
 // --- Migration: projects.display_order (manual control over which release
 // is "featured" and how the rest are ordered). SQLite has no "ADD COLUMN IF
 // NOT EXISTS", so check first via PRAGMA before altering an existing table. ---
@@ -562,21 +576,43 @@ function nextLeaderboardRankPosition() {
   return (row.maxOrder ?? 0) + 1;
 }
 
-function insertLeaderboardEntry({ id, artist, songTitle, streamDate, link }) {
+function insertLeaderboardEntry({ id, artist, songTitle, streamDate, link, audioFile }) {
   db.prepare(
-    `INSERT INTO leaderboard_entries (id, artist, song_title, stream_date, link, rank_position)
-     VALUES (?, ?, ?, ?, ?, ?)`
-  ).run(id, artist, songTitle, streamDate, link || null, nextLeaderboardRankPosition());
+    `INSERT INTO leaderboard_entries (id, artist, song_title, stream_date, link, audio_file, rank_position)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`
+  ).run(id, artist, songTitle, streamDate, link || null, audioFile || null, nextLeaderboardRankPosition());
   return getLeaderboardEntryRow(id);
 }
 
-function updateLeaderboardEntry(id, { artist, songTitle, streamDate, link }) {
+// audioFile here is always the FINAL value the caller wants stored (a new
+// filename, the existing one unchanged, or null to clear it) -- the
+// route in admin-routes.js works out which of those applies (new upload vs.
+// keep vs. explicit remove) since that's a request-shape decision, not a
+// database one.
+function updateLeaderboardEntry(id, { artist, songTitle, streamDate, link, audioFile }) {
   const current = getLeaderboardEntryRow(id);
   if (!current) return null;
   db.prepare(
-    `UPDATE leaderboard_entries SET artist = ?, song_title = ?, stream_date = ?, link = ? WHERE id = ?`
-  ).run(artist, songTitle, streamDate, link || null, id);
+    `UPDATE leaderboard_entries SET artist = ?, song_title = ?, stream_date = ?, link = ?, audio_file = ? WHERE id = ?`
+  ).run(artist, songTitle, streamDate, link || null, audioFile || null, id);
   return getLeaderboardEntryRow(id);
+}
+
+// Bulk "clear audio only" for the admin Danger Zone -- wipes the DB column
+// for every entry that has one. Deleting the actual files on disk is the
+// caller's job (server/admin-routes.js), same division of labor as
+// deleteLeaderboardEntry below: db.js only ever touches the database.
+function clearAllLeaderboardAudio() {
+  db.prepare(`UPDATE leaderboard_entries SET audio_file = NULL WHERE audio_file IS NOT NULL`).run();
+}
+
+// Bulk "delete everything" for the admin Danger Zone -- a distinct, more
+// severe action from clearAllLeaderboardAudio above (Ted wants these as two
+// separate buttons): this removes the entries themselves, not just their
+// audio. Same division of labor: file cleanup happens in admin-routes.js
+// before this runs.
+function deleteAllLeaderboardEntries() {
+  db.prepare(`DELETE FROM leaderboard_entries`).run();
 }
 
 function deleteLeaderboardEntry(id) {
@@ -680,6 +716,8 @@ module.exports = {
   insertLeaderboardEntry,
   updateLeaderboardEntry,
   deleteLeaderboardEntry,
+  clearAllLeaderboardAudio,
+  deleteAllLeaderboardEntries,
   swapLeaderboardRank,
   setLeaderboardWinner,
   clearLeaderboardWinner,

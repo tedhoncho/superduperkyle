@@ -584,9 +584,12 @@ body {
   display: inline-block;
   font-size: 13px;
   font-weight: 700;
+  font-family: inherit;
   color: var(--accent-text);
   background: var(--accent);
   text-decoration: none;
+  border: none;
+  cursor: pointer;
   padding: 9px 20px;
   border-radius: var(--radius);
 }
@@ -714,16 +717,24 @@ body {
   border-radius: var(--radius);
   white-space: nowrap;
 }
-.entry-link {
+.entry-play-btn {
+  flex: 0 0 auto;
+  width: 32px;
+  height: 32px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   font-size: 13px;
-  font-weight: 600;
+  font-family: inherit;
   color: var(--accent);
+  background: none;
   text-decoration: none;
   border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 6px 12px;
+  border-radius: 50%;
+  padding: 0;
+  cursor: pointer;
 }
-.entry-link:hover { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
+.entry-play-btn:hover { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
 
 .entry-thumbs {
   display: inline-flex;

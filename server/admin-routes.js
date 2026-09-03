@@ -6,7 +6,7 @@ const db = require('./db');
 const catalog = require('./catalog');
 const storage = require('./storage');
 const { checkPassword, requireAuth } = require('./auth');
-const { audioUpload, imageUpload, extOf, AUDIO_DIR, ART_DIR } = require('./uploads');
+const { audioUpload, imageUpload, extOf, AUDIO_DIR, ART_DIR, SUBMISSION_AUDIO_DIR } = require('./uploads');
 const { getDurationSeconds, generatePreviewClip } = require('./media');
 const { slugId } = require('./ids');
 
@@ -300,6 +300,7 @@ function leaderboardEntryToJson(row) {
     songTitle: row.song_title,
     streamDate: row.stream_date,
     link: row.link || '',
+    hasAudio: !!row.audio_file,
     isWinner: !!row.is_winner,
     rankPosition: row.rank_position,
     thumbsCount: row.thumbs_count,
@@ -308,50 +309,146 @@ function leaderboardEntryToJson(row) {
   };
 }
 
+// Deletes a submission mp3 from data/submission-audio/ if it's actually
+// there. Used whenever a row's audio_file is about to change or the row
+// itself is going away, so orphaned files don't quietly pile up in a
+// directory that's supposed to get fully cleared after every contest.
+function deleteSubmissionAudioFile(filename) {
+  if (!filename) return;
+  const filePath = path.join(SUBMISSION_AUDIO_DIR, filename);
+  if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+}
+
 router.get('/leaderboard', (req, res) => {
   res.json({ entries: db.listLeaderboardEntriesForAdmin().map(leaderboardEntryToJson) });
 });
 
+// Multipart now (was plain JSON) so the optional submission mp3 can ride
+// along with the rest of the form in one request -- see the admin
+// Leaderboard tab's "Add a pick" form. audioUpload is the same multer
+// instance the real track-upload route uses; memory storage doesn't care
+// where the bytes end up, that's decided right here (SUBMISSION_AUDIO_DIR,
+// never AUDIO_DIR -- those stay fully separate).
 router.post('/leaderboard', (req, res) => {
-  const artist = (req.body.artist || '').trim();
-  const songTitle = (req.body.songTitle || '').trim();
-  const streamDate = (req.body.streamDate || '').trim();
-  const link = (req.body.link || '').trim();
+  audioUpload.single('audio')(req, res, (err) => {
+    if (err) return res.status(400).json({ error: err.message });
 
-  if (!artist) return res.status(400).json({ error: 'Give it an artist name.' });
-  if (!songTitle) return res.status(400).json({ error: 'Give it a song title.' });
-  if (!streamDate || Number.isNaN(Date.parse(streamDate))) {
-    return res.status(400).json({ error: 'Pick the stream date this was reviewed on.' });
-  }
+    const artist = (req.body.artist || '').trim();
+    const songTitle = (req.body.songTitle || '').trim();
+    const streamDate = (req.body.streamDate || '').trim();
+    const link = (req.body.link || '').trim();
 
-  const entry = db.insertLeaderboardEntry({ id: slugId(`${artist}-${songTitle}`), artist, songTitle, streamDate, link });
-  res.json({ entry: leaderboardEntryToJson(entry) });
+    if (!artist) return res.status(400).json({ error: 'Give it an artist name.' });
+    if (!songTitle) return res.status(400).json({ error: 'Give it a song title.' });
+    if (!streamDate || Number.isNaN(Date.parse(streamDate))) {
+      return res.status(400).json({ error: 'Pick the stream date this was reviewed on.' });
+    }
+
+    const id = slugId(`${artist}-${songTitle}`);
+    let audioFile = null;
+    if (req.file) {
+      audioFile = `${id}${extOf(req.file.originalname) || '.mp3'}`;
+      fs.writeFileSync(path.join(SUBMISSION_AUDIO_DIR, audioFile), req.file.buffer);
+    }
+
+    const entry = db.insertLeaderboardEntry({ id, artist, songTitle, streamDate, link, audioFile });
+    res.json({ entry: leaderboardEntryToJson(entry) });
+  });
 });
 
 router.put('/leaderboard/:id', (req, res) => {
-  const existing = db.getLeaderboardEntryRow(req.params.id);
-  if (!existing) return res.status(404).json({ error: 'Entry not found.' });
+  audioUpload.single('audio')(req, res, (err) => {
+    if (err) return res.status(400).json({ error: err.message });
 
-  const artist = (req.body.artist || '').trim();
-  const songTitle = (req.body.songTitle || '').trim();
-  const streamDate = (req.body.streamDate || '').trim();
-  const link = (req.body.link || '').trim();
+    const existing = db.getLeaderboardEntryRow(req.params.id);
+    if (!existing) return res.status(404).json({ error: 'Entry not found.' });
 
-  if (!artist) return res.status(400).json({ error: 'Give it an artist name.' });
-  if (!songTitle) return res.status(400).json({ error: 'Give it a song title.' });
-  if (!streamDate || Number.isNaN(Date.parse(streamDate))) {
-    return res.status(400).json({ error: 'Pick the stream date this was reviewed on.' });
-  }
+    const artist = (req.body.artist || '').trim();
+    const songTitle = (req.body.songTitle || '').trim();
+    const streamDate = (req.body.streamDate || '').trim();
+    const link = (req.body.link || '').trim();
 
-  const entry = db.updateLeaderboardEntry(req.params.id, { artist, songTitle, streamDate, link });
-  res.json({ entry: leaderboardEntryToJson(entry) });
+    if (!artist) return res.status(400).json({ error: 'Give it an artist name.' });
+    if (!songTitle) return res.status(400).json({ error: 'Give it a song title.' });
+    if (!streamDate || Number.isNaN(Date.parse(streamDate))) {
+      return res.status(400).json({ error: 'Pick the stream date this was reviewed on.' });
+    }
+
+    const removeAudio = req.body.removeAudio === 'true' || req.body.removeAudio === true;
+    let audioFile = existing.audio_file || null;
+    if (req.file) {
+      // Replacing -- drop the old file first so it doesn't sit around as an
+      // orphan the Danger Zone stats never account for.
+      deleteSubmissionAudioFile(existing.audio_file);
+      audioFile = `${existing.id}${extOf(req.file.originalname) || '.mp3'}`;
+      fs.writeFileSync(path.join(SUBMISSION_AUDIO_DIR, audioFile), req.file.buffer);
+    } else if (removeAudio && existing.audio_file) {
+      deleteSubmissionAudioFile(existing.audio_file);
+      audioFile = null;
+    }
+
+    const entry = db.updateLeaderboardEntry(req.params.id, { artist, songTitle, streamDate, link, audioFile });
+    res.json({ entry: leaderboardEntryToJson(entry) });
+  });
 });
 
 router.delete('/leaderboard/:id', (req, res) => {
   const existing = db.getLeaderboardEntryRow(req.params.id);
   if (!existing) return res.status(404).json({ error: 'Entry not found.' });
+  deleteSubmissionAudioFile(existing.audio_file);
   db.deleteLeaderboardEntry(req.params.id);
   res.json({ ok: true });
+});
+
+// --- Danger Zone: bulk-clear submission audio/entries ---
+// Two deliberately separate actions (Ted's call, not a single "clear
+// everything" button): clearing audio frees storage while keeping every
+// entry's history (artist, title, votes, winner/round status) intact;
+// deleting all entries wipes the board completely for a fresh contest.
+// Both require typing an exact confirmation phrase server-side -- not just
+// a client-side check -- so this can't be triggered by replaying a stale
+// request either. The admin UI adds two more layers on top of this (a
+// stats readout before you even see the phrase field, and a final native
+// confirm() popup), since Ted specifically asked for more friction here
+// than the single confirm() dialog the rest of the admin panel uses.
+const LEADERBOARD_CLEAR_AUDIO_PHRASE = 'CLEAR AUDIO';
+const LEADERBOARD_DELETE_ALL_PHRASE = 'DELETE ALL ENTRIES';
+
+// Powers the stats line in both Danger Zone confirm panels -- shown before
+// Kyle/Ted types anything, so the real scope of the action is visible
+// up front rather than only after the fact.
+router.get('/leaderboard/audio-usage', (req, res) => {
+  const rows = db.listLeaderboardEntriesForAdmin().filter((row) => row.audio_file);
+  let totalBytes = 0;
+  for (const row of rows) {
+    try {
+      totalBytes += fs.statSync(path.join(SUBMISSION_AUDIO_DIR, row.audio_file)).size;
+    } catch (err) {
+      // File already missing on disk somehow -- still counts as a row
+      // that'll get cleared, just contributes 0 bytes to the estimate.
+    }
+  }
+  res.json({ count: rows.length, totalBytes });
+});
+
+router.post('/leaderboard/clear-audio', (req, res) => {
+  if ((req.body.confirmPhrase || '').trim() !== LEADERBOARD_CLEAR_AUDIO_PHRASE) {
+    return res.status(400).json({ error: `Type "${LEADERBOARD_CLEAR_AUDIO_PHRASE}" exactly to confirm.` });
+  }
+  const rows = db.listLeaderboardEntriesForAdmin().filter((row) => row.audio_file);
+  for (const row of rows) deleteSubmissionAudioFile(row.audio_file);
+  db.clearAllLeaderboardAudio();
+  res.json({ cleared: rows.length });
+});
+
+router.post('/leaderboard/delete-all', (req, res) => {
+  if ((req.body.confirmPhrase || '').trim() !== LEADERBOARD_DELETE_ALL_PHRASE) {
+    return res.status(400).json({ error: `Type "${LEADERBOARD_DELETE_ALL_PHRASE}" exactly to confirm.` });
+  }
+  const rows = db.listLeaderboardEntriesForAdmin();
+  for (const row of rows) deleteSubmissionAudioFile(row.audio_file);
+  db.deleteAllLeaderboardEntries();
+  res.json({ deleted: rows.length });
 });
 
 router.post('/leaderboard/:id/reorder', (req, res) => {

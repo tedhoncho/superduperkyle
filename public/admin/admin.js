@@ -747,7 +747,7 @@ function renderLeaderboardList(entries) {
       </div>
       <div class="admin-project-info">
         <h3>${entry.artist} — ${entry.songTitle}${entry.isWinner ? ' <span class="admin-featured-badge">🏆 Winner</span>' : ''}${entry.streamTopPick ? ' <span class="admin-soldout-badge" style="background: var(--accent);">⭐ Kyle\'s Top 3</span>' : ''}</h3>
-        <p>Stream date: ${entry.streamDate}${entry.link ? ' · has a link' : ''} · 😊 ${entry.thumbsCount} · Round: ${ROUND_LABELS[entry.round] || 'Open Pool'}</p>
+        <p>Stream date: ${entry.streamDate}${entry.link ? ' · has a link' : ''}${entry.hasAudio ? ' · 🎵 has audio' : ''} · 😊 ${entry.thumbsCount} · Round: ${ROUND_LABELS[entry.round] || 'Open Pool'}</p>
       </div>
       <div class="admin-project-row-actions" style="flex-wrap: wrap; justify-content: flex-end;">
         <select class="admin-round-select" title="Contest-wide round for this entry" ${entry.isWinner ? 'disabled' : ''}>
@@ -810,6 +810,10 @@ function resetLeaderboardForm() {
   document.getElementById('field-lb-song').value = '';
   document.getElementById('field-lb-date').value = '';
   document.getElementById('field-lb-link').value = '';
+  document.getElementById('field-lb-audio').value = '';
+  document.getElementById('field-lb-remove-audio').checked = false;
+  document.getElementById('lb-current-audio').classList.add('hidden');
+  document.getElementById('lb-remove-audio-row').classList.add('hidden');
   document.getElementById('leaderboard-entry-error').classList.add('hidden');
   document.getElementById('btn-save-lb-entry').textContent = 'Add to leaderboard';
   document.getElementById('btn-cancel-lb-entry').classList.add('hidden');
@@ -821,6 +825,18 @@ function openLeaderboardEditForm(entry) {
   document.getElementById('field-lb-song').value = entry.songTitle;
   document.getElementById('field-lb-date').value = entry.streamDate;
   document.getElementById('field-lb-link').value = entry.link || '';
+  document.getElementById('field-lb-audio').value = '';
+  document.getElementById('field-lb-remove-audio').checked = false;
+  const currentAudioEl = document.getElementById('lb-current-audio');
+  const removeRowEl = document.getElementById('lb-remove-audio-row');
+  if (entry.hasAudio) {
+    currentAudioEl.textContent = 'This entry already has an mp3 attached — uploading a new one replaces it.';
+    currentAudioEl.classList.remove('hidden');
+    removeRowEl.classList.remove('hidden');
+  } else {
+    currentAudioEl.classList.add('hidden');
+    removeRowEl.classList.add('hidden');
+  }
   document.getElementById('btn-save-lb-entry').textContent = 'Save changes';
   document.getElementById('btn-cancel-lb-entry').classList.remove('hidden');
   document.getElementById('field-lb-artist').focus();
@@ -832,12 +848,14 @@ document.getElementById('btn-save-lb-entry').addEventListener('click', async () 
   const errorEl = document.getElementById('leaderboard-entry-error');
   errorEl.classList.add('hidden');
 
-  const payload = {
-    artist: document.getElementById('field-lb-artist').value.trim(),
-    songTitle: document.getElementById('field-lb-song').value.trim(),
-    streamDate: document.getElementById('field-lb-date').value,
-    link: document.getElementById('field-lb-link').value.trim(),
-  };
+  const formData = new FormData();
+  formData.append('artist', document.getElementById('field-lb-artist').value.trim());
+  formData.append('songTitle', document.getElementById('field-lb-song').value.trim());
+  formData.append('streamDate', document.getElementById('field-lb-date').value);
+  formData.append('link', document.getElementById('field-lb-link').value.trim());
+  const audioFile = document.getElementById('field-lb-audio').files[0];
+  if (audioFile) formData.append('audio', audioFile);
+  if (document.getElementById('field-lb-remove-audio').checked) formData.append('removeAudio', 'true');
 
   const btn = document.getElementById('btn-save-lb-entry');
   btn.disabled = true;
@@ -845,9 +863,9 @@ document.getElementById('btn-save-lb-entry').addEventListener('click', async () 
 
   try {
     if (editingLeaderboardId) {
-      await api('PUT', `/api/admin/leaderboard/${editingLeaderboardId}`, payload);
+      await api('PUT', `/api/admin/leaderboard/${editingLeaderboardId}`, formData);
     } else {
-      await api('POST', '/api/admin/leaderboard', payload);
+      await api('POST', '/api/admin/leaderboard', formData);
     }
     resetLeaderboardForm();
     loadLeaderboardEntries();
@@ -857,6 +875,99 @@ document.getElementById('btn-save-lb-entry').addEventListener('click', async () 
   } finally {
     btn.disabled = false;
     btn.textContent = editingLeaderboardId ? 'Save changes' : 'Add to leaderboard';
+  }
+});
+
+// ---------- leaderboard Danger Zone ----------
+// Two separate destructive actions, each behind three layers of friction
+// (Ted specifically asked for more than the single confirm() dialog the
+// rest of the admin panel uses): open the panel to see the exact stats
+// first, type an exact phrase, then a final native confirm() before
+// anything actually happens. The phrase itself is also checked
+// server-side, so this can't be forced by replaying a request either.
+
+async function refreshLeaderboardAudioStats(targetEl) {
+  const { count, totalBytes } = await api('GET', '/api/admin/leaderboard/audio-usage');
+  const mb = (totalBytes / (1024 * 1024)).toFixed(1);
+  targetEl.textContent = count
+    ? `${count} submission${count === 1 ? '' : 's'} currently have audio attached — about ${mb} MB will be freed.`
+    : 'No submission audio is currently stored — nothing to clear.';
+}
+
+document.getElementById('btn-open-clear-audio').addEventListener('click', async () => {
+  document.getElementById('field-clear-audio-phrase').value = '';
+  document.getElementById('clear-audio-error').classList.add('hidden');
+  document.getElementById('clear-audio-panel').classList.remove('hidden');
+  await refreshLeaderboardAudioStats(document.getElementById('clear-audio-stats'));
+});
+
+document.getElementById('btn-cancel-clear-audio').addEventListener('click', () => {
+  document.getElementById('clear-audio-panel').classList.add('hidden');
+});
+
+document.getElementById('btn-confirm-clear-audio').addEventListener('click', async () => {
+  const errorEl = document.getElementById('clear-audio-error');
+  errorEl.classList.add('hidden');
+  const phrase = document.getElementById('field-clear-audio-phrase').value.trim();
+  if (phrase !== 'CLEAR AUDIO') {
+    errorEl.textContent = 'Type it exactly: CLEAR AUDIO';
+    errorEl.classList.remove('hidden');
+    return;
+  }
+  if (!confirm('Final check: permanently delete every submission mp3? Entries, links, and vote history stay — only the audio files go. This cannot be undone.')) return;
+
+  const btn = document.getElementById('btn-confirm-clear-audio');
+  btn.disabled = true;
+  try {
+    const { cleared } = await api('POST', '/api/admin/leaderboard/clear-audio', { confirmPhrase: phrase });
+    document.getElementById('clear-audio-panel').classList.add('hidden');
+    loadLeaderboardEntries();
+    alert(`Cleared audio from ${cleared} submission${cleared === 1 ? '' : 's'}.`);
+  } catch (err) {
+    errorEl.textContent = err.message;
+    errorEl.classList.remove('hidden');
+  } finally {
+    btn.disabled = false;
+  }
+});
+
+document.getElementById('btn-open-delete-all').addEventListener('click', async () => {
+  document.getElementById('field-delete-all-phrase').value = '';
+  document.getElementById('delete-all-error').classList.add('hidden');
+  document.getElementById('delete-all-panel').classList.remove('hidden');
+  const { entries } = await api('GET', '/api/admin/leaderboard');
+  document.getElementById('delete-all-stats').textContent = entries.length
+    ? `${entries.length} entr${entries.length === 1 ? 'y' : 'ies'} — including any winner, round, and vote history — will be permanently deleted.`
+    : 'No entries exist right now — nothing to delete.';
+});
+
+document.getElementById('btn-cancel-delete-all').addEventListener('click', () => {
+  document.getElementById('delete-all-panel').classList.add('hidden');
+});
+
+document.getElementById('btn-confirm-delete-all').addEventListener('click', async () => {
+  const errorEl = document.getElementById('delete-all-error');
+  errorEl.classList.add('hidden');
+  const phrase = document.getElementById('field-delete-all-phrase').value.trim();
+  if (phrase !== 'DELETE ALL ENTRIES') {
+    errorEl.textContent = 'Type it exactly: DELETE ALL ENTRIES';
+    errorEl.classList.remove('hidden');
+    return;
+  }
+  if (!confirm('Final check: permanently delete every leaderboard entry and all their history? This cannot be undone.')) return;
+
+  const btn = document.getElementById('btn-confirm-delete-all');
+  btn.disabled = true;
+  try {
+    const { deleted } = await api('POST', '/api/admin/leaderboard/delete-all', { confirmPhrase: phrase });
+    document.getElementById('delete-all-panel').classList.add('hidden');
+    loadLeaderboardEntries();
+    alert(`Deleted ${deleted} entr${deleted === 1 ? 'y' : 'ies'}.`);
+  } catch (err) {
+    errorEl.textContent = err.message;
+    errorEl.classList.remove('hidden');
+  } finally {
+    btn.disabled = false;
   }
 });
 

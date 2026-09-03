@@ -57,6 +57,60 @@ function markEntryVoted(id) {
   }
 }
 
+// --- Submission mp3 playback ---
+// One small play button per entry (see renderPlayAction below): plays the
+// attached mp3 inline when there is one, otherwise falls back to opening
+// the entry's link -- Kyle's ask was specifically "a play button", not a
+// separate link button and a separate play button. Mirrors app.js's
+// togglePreviewButton for the same reason that one avoids a native
+// <audio controls> element: a bare Audio() object never gets attached to
+// the DOM, so there's nothing to right-click and download from directly.
+// This deters casual downloading -- it isn't DRM, and doesn't claim to be.
+let currentSubmissionAudio = null;
+let currentSubmissionButton = null;
+
+function setPlayButtonState(btn, isPlaying) {
+  if (!btn) return;
+  // The winner hero button keeps a full label; the compact per-entry
+  // button is icon-only -- same distinction the two markups already draw.
+  if (btn.classList.contains('winner-hero-link')) {
+    btn.textContent = isPlaying ? '❚❚ Playing the winning song' : '▶ Play the winning song';
+  } else {
+    btn.textContent = isPlaying ? '❚❚' : '▶';
+  }
+}
+
+function toggleSubmissionAudio(url, btn) {
+  if (currentSubmissionAudio && !currentSubmissionAudio.paused && currentSubmissionAudio.dataset.url === url) {
+    currentSubmissionAudio.pause();
+    setPlayButtonState(btn, false);
+    return;
+  }
+  if (currentSubmissionAudio) currentSubmissionAudio.pause();
+  if (currentSubmissionButton) setPlayButtonState(currentSubmissionButton, false);
+
+  currentSubmissionAudio = new Audio(url);
+  currentSubmissionAudio.dataset.url = url;
+  currentSubmissionAudio.play();
+  setPlayButtonState(btn, true);
+  currentSubmissionButton = btn;
+  currentSubmissionAudio.addEventListener('ended', () => setPlayButtonState(btn, false));
+}
+
+// Single button per entry: plays the mp3 when one's attached (mp3 always
+// wins when both are set -- Ted's call), otherwise opens the submission
+// link in a new tab, same as the old dedicated "Listen" link. No button at
+// all when an entry has neither.
+function renderPlayAction(entry, label) {
+  if (entry.audioUrl) {
+    return `<button type="button" class="entry-play-btn" data-play-audio="${entry.audioUrl}" aria-label="Play ${label}">▶</button>`;
+  }
+  if (entry.link) {
+    return `<a href="${entry.link}" class="entry-play-btn entry-play-link" target="_blank" rel="noopener" aria-label="Listen to ${label}">▶</a>`;
+  }
+  return '';
+}
+
 function renderEntry(entry, opts) {
   const { rankNumber, thumbsEnabled, votedIds, thumbsLimitOne, isFanFavorite, showDateMeta } = opts;
   const winnerBadge = entry.isWinner ? '<span class="winner-badge">🏆 Feature Winner</span>' : '';
@@ -69,9 +123,7 @@ function renderEntry(entry, opts) {
     ? '<span class="stream-pick-badge" title="One of Kyle\'s top 3 picks from this stream — not vote-based">⭐ Kyle\'s Top 3</span>'
     : '';
   const rankLabel = rankNumber ? `<span class="entry-rank">#${rankNumber}</span>` : '';
-  const linkHtml = entry.link
-    ? `<a href="${entry.link}" class="entry-link" target="_blank" rel="noopener">Listen</a>`
-    : '';
+  const linkHtml = renderPlayAction(entry, `${entry.artist} — ${entry.songTitle}`);
   const hasVoted = thumbsLimitOne && votedIds.has(entry.id);
   const thumbsHtml = thumbsEnabled
     ? `<button type="button" class="entry-thumbs${hasVoted ? ' is-voted' : ''}" data-entry-id="${entry.id}" ${hasVoted ? 'disabled' : ''} aria-label="${hasVoted ? 'You gave this a SMYLE face' : 'Give this pick a SMYLE face'}">😊 <span class="entry-thumbs-count">${entry.thumbsCount || 0}</span></button>`
@@ -130,6 +182,13 @@ mainEl.addEventListener('click', async (e) => {
   }
 });
 
+mainEl.addEventListener('click', (e) => {
+  const playBtn = e.target.closest('[data-play-audio]');
+  if (!playBtn) return;
+  e.preventDefault();
+  toggleSubmissionAudio(playBtn.dataset.playAudio, playBtn);
+});
+
 // Escapes the admin-editable heading/subheading text before dropping it
 // into innerHTML, since it's free-form input from a form rather than a
 // fixed template string.
@@ -181,7 +240,9 @@ function computeFanFavoriteIds(entries, thumbsEnabled) {
 // appears in its normal spot in the list too (with its badge), this is just
 // a bigger, harder-to-miss callout for the one Kyle actually chose.
 function renderWinnerHero(entry) {
-  const linkHtml = entry.link
+  const linkHtml = entry.audioUrl
+    ? `<button type="button" class="winner-hero-link" data-play-audio="${entry.audioUrl}">▶ Play the winning song</button>`
+    : entry.link
     ? `<a href="${entry.link}" class="winner-hero-link" target="_blank" rel="noopener">Listen to the winning song</a>`
     : '';
   return `

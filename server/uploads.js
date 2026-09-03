@@ -9,7 +9,17 @@ const fs = require('fs');
 
 const AUDIO_DIR = path.join(__dirname, '..', 'data', 'audio');
 const ART_DIR = path.join(__dirname, '..', 'data', 'art');
-for (const dir of [AUDIO_DIR, ART_DIR]) {
+// Feature Contest submission mp3s (Kyle wants fans to be able to replay a
+// submission when they come back to vote). Deliberately its own directory,
+// not a subfolder of AUDIO_DIR -- these are disposable, cleared out after
+// each contest via the admin Leaderboard tab's Danger Zone, and kept
+// completely outside storage.js's S3 abstraction (which exists to protect
+// real purchasable masters from Railway's ephemeral disk). Local-only
+// storage means these files don't survive a redeploy any better than real
+// masters would in local mode -- an accepted tradeoff since they're meant
+// to be temporary anyway.
+const SUBMISSION_AUDIO_DIR = path.join(__dirname, '..', 'data', 'submission-audio');
+for (const dir of [AUDIO_DIR, ART_DIR, SUBMISSION_AUDIO_DIR]) {
   fs.mkdirSync(dir, { recursive: true });
 }
 
@@ -45,4 +55,4 @@ const imageUpload = multer({
   },
 });
 
-module.exports = { audioUpload, imageUpload, extOf, AUDIO_DIR, ART_DIR };
+module.exports = { audioUpload, imageUpload, extOf, AUDIO_DIR, ART_DIR, SUBMISSION_AUDIO_DIR };
