@@ -140,6 +140,16 @@ body { background: var(--surface-2); }
 }
 .admin-project-info p { margin: 0; color: var(--text-dim); font-size: 13px; }
 .admin-project-row-actions { display: flex; gap: 8px; flex-shrink: 0; }
+
+/* --- Leaderboard entries row (admin panel only) ---
+   This list grew a longer action-button set (round select, Kyle's Top 3,
+   Mark Winner, Add/Swap song, Remove song, Edit, Delete) than the plain
+   .admin-project-row layout can hold next to the song info column, so it
+   gets its own stacked layout: song info full-width on top, buttons
+   wrapping in their own row underneath. */
+.admin-lb-row { flex-direction: column; align-items: stretch; gap: 10px; }
+.admin-lb-row-main { display: flex; align-items: center; gap: 14px; }
+.admin-lb-row .admin-project-row-actions { flex-wrap: wrap; justify-content: flex-start; width: 100%; }
 .admin-empty { color: var(--text-dim); text-align: center; padding: 40px 0; }
 
 /* --- Editor --- */

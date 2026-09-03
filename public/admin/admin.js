@@ -739,17 +739,19 @@ function renderLeaderboardList(entries) {
   listEl.innerHTML = '';
   entries.forEach((entry, index) => {
     const row = document.createElement('div');
-    row.className = 'admin-project-row';
+    row.className = 'admin-project-row admin-lb-row';
     row.innerHTML = `
-      <div class="admin-track-order" title="Manual rank order — only used on the site when Public page order is set to Rank">
-        <button class="btn-up" ${index === 0 ? 'disabled' : ''}>&and;</button>
-        <button class="btn-down" ${index === entries.length - 1 ? 'disabled' : ''}>&or;</button>
+      <div class="admin-lb-row-main">
+        <div class="admin-track-order" title="Manual rank order — only used on the site when Public page order is set to Rank">
+          <button class="btn-up" ${index === 0 ? 'disabled' : ''}>&and;</button>
+          <button class="btn-down" ${index === entries.length - 1 ? 'disabled' : ''}>&or;</button>
+        </div>
+        <div class="admin-project-info">
+          <h3>${entry.artist} — ${entry.songTitle}${entry.isWinner ? ' <span class="admin-featured-badge">🏆 Winner</span>' : ''}${entry.streamTopPick ? ' <span class="admin-soldout-badge" style="background: var(--accent);">⭐ Kyle\'s Top 3</span>' : ''}</h3>
+          <p>Stream date: ${entry.streamDate}${entry.link ? ' · has a link' : ''}${entry.hasAudio ? ' · 🎵 has audio' : ''} · 😊 ${entry.thumbsCount} · Round: ${ROUND_LABELS[entry.round] || 'Open Pool'}</p>
+        </div>
       </div>
-      <div class="admin-project-info">
-        <h3>${entry.artist} — ${entry.songTitle}${entry.isWinner ? ' <span class="admin-featured-badge">🏆 Winner</span>' : ''}${entry.streamTopPick ? ' <span class="admin-soldout-badge" style="background: var(--accent);">⭐ Kyle\'s Top 3</span>' : ''}</h3>
-        <p>Stream date: ${entry.streamDate}${entry.link ? ' · has a link' : ''}${entry.hasAudio ? ' · 🎵 has audio' : ''} · 😊 ${entry.thumbsCount} · Round: ${ROUND_LABELS[entry.round] || 'Open Pool'}</p>
-      </div>
-      <div class="admin-project-row-actions" style="flex-wrap: wrap; justify-content: flex-end;">
+      <div class="admin-project-row-actions">
         <select class="admin-round-select" title="Contest-wide round for this entry" ${entry.isWinner ? 'disabled' : ''}>
           <option value="pool" ${entry.round === 'pool' ? 'selected' : ''}>Open Pool</option>
           <option value="top10" ${entry.round === 'top10' ? 'selected' : ''}>Top 10</option>
