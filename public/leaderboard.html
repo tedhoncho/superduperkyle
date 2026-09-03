@@ -17,26 +17,12 @@
         <a href="https://www.superduperkyle.com" class="nav-link">Main Site</a>
       </nav>
     </div>
-    <!-- Only shows while Kyle is actually streaming (see /api/twitch-status,
-         server/twitch.js) — leaderboard.js polls this periodically since a
-         fan might be sitting on this page when he goes live. Sits above the
-         countdown below: happening right now beats a countdown to later. -->
-    <div id="live-banner" class="live-banner hidden">
-      <a id="live-banner-link" class="live-banner-link" target="_blank" rel="noopener">
-        <span class="live-banner-row">
-          <span class="live-dot" aria-hidden="true"></span>
-          <span id="live-banner-text" class="live-banner-text">Kyle is live on Twitch right now</span>
-          <span id="live-banner-viewers" class="live-banner-viewers hidden"></span>
-        </span>
-        <span class="live-banner-cta">Watch on Twitch and hit Follow &mdash; it helps us land on their homepage &rarr;</span>
-      </a>
-    </div>
-    <!-- Quiet, always-on version of the same ask for the far more common
-         case: someone browsing the leaderboard while Kyle isn't streaming.
-         Mutually exclusive with #live-banner above -- renderLiveBanner in
-         leaderboard.js shows exactly one of the two, never both. Appears as
-         soon as TWITCH_CHANNEL_LOGIN is set, even before the full API
-         credentials needed for live detection are in place. -->
+    <!-- Standing "Follow Kyle on Twitch" nudge -- shown whenever a channel
+         is configured (see /api/twitch-status, server/twitch.js). Used to
+         share this spot with an automatic "Kyle is live now" banner, but
+         that became redundant once the actual stream could be embedded
+         under the leaderboard entries (admin Leaderboard tab) -- removed
+         rather than layering more live-detection on top of it. -->
     <div id="twitch-follow-banner" class="twitch-follow-banner hidden">
       <a id="twitch-follow-link" class="twitch-follow-button" target="_blank" rel="noopener">Follow Kyle on Twitch &rarr;</a>
     </div>

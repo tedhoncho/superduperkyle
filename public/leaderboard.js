@@ -580,60 +580,39 @@ async function loadCountdown() {
   }
 }
 
-// --- "Live on Twitch" banner ---
-// Shows only while Kyle is actually streaming (see /api/twitch-status,
-// server/twitch.js). This is the page most tied to his streams and expected
-// to get the most traffic, so the point is pulling fans who land here
-// straight over to watch, not just people who happen to check Twitch
-// directly. Polled on an interval rather than checked once on load, since a
-// fan can sit on this page for a while and Kyle could go live (or end a
-// stream) while they're here.
+// --- "Follow Kyle on Twitch" banner ---
+// Standing nudge shown whenever a channel is configured (see
+// /api/twitch-status, server/twitch.js). Used to share this spot with an
+// automatic "Kyle is live now" banner, but that became redundant once the
+// actual stream could be embedded under the leaderboard entries (admin
+// Leaderboard tab, see updateTwitchEmbed below) -- removed rather than
+// layering more live-detection on top of it. Still polled on an interval
+// (not just checked once on load) since twitchChannelLogin/updateTwitchEmbed
+// below also depend on this same call.
 const LIVE_STATUS_POLL_MS = 60 * 1000;
 let liveStatusTimer = null;
 
-function renderLiveBanner(status) {
-  const banner = document.getElementById('live-banner');
-  const link = document.getElementById('live-banner-link');
-  const textEl = document.getElementById('live-banner-text');
-  const viewersEl = document.getElementById('live-banner-viewers');
+function renderFollowBanner(status) {
   const followBanner = document.getElementById('twitch-follow-banner');
   const followLink = document.getElementById('twitch-follow-link');
 
   // No Twitch channel configured yet at all (server/twitch.js needs at
-  // least TWITCH_CHANNEL_LOGIN) — hide both banners rather than linking
-  // fans to a blank/broken twitch.tv URL.
+  // least TWITCH_CHANNEL_LOGIN) -- hide the banner rather than linking fans
+  // to a blank/broken twitch.tv URL.
   if (!status || !status.channelUrl) {
-    banner.classList.add('hidden');
     followBanner.classList.add('hidden');
     return;
   }
 
-  if (status.live) {
-    link.href = status.channelUrl;
-    textEl.textContent = status.title ? `Kyle is live now — ${status.title}` : 'Kyle is live on Twitch right now';
-    if (status.viewerCount) {
-      viewersEl.textContent = `${status.viewerCount.toLocaleString()} watching`;
-      viewersEl.classList.remove('hidden');
-    } else {
-      viewersEl.classList.add('hidden');
-    }
-    banner.classList.remove('hidden');
-    followBanner.classList.add('hidden');
-  } else {
-    // Not live right now, but the channel is known — show the quiet,
-    // always-on follow nudge instead. This is the far more common case:
-    // most leaderboard traffic happens between streams.
-    banner.classList.add('hidden');
-    followLink.href = status.channelUrl;
-    followBanner.classList.remove('hidden');
-  }
+  followLink.href = status.channelUrl;
+  followBanner.classList.remove('hidden');
 }
 
 async function loadLiveStatus() {
   try {
     const res = await fetch('/api/twitch-status');
     const data = await res.json();
-    renderLiveBanner(data);
+    renderFollowBanner(data);
     twitchChannelLogin = data.channelLogin || '';
     updateTwitchEmbed();
   } catch (err) {
