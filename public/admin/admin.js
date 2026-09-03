@@ -757,6 +757,9 @@ function renderLeaderboardList(entries) {
         </select>
         <button class="admin-btn-ghost btn-stream-pick">${entry.streamTopPick ? "Remove Kyle's Top 3" : "⭐ Mark as Kyle's Top 3"}</button>
         <button class="admin-btn-ghost btn-winner">${entry.isWinner ? 'Remove Winner' : 'Mark Winner'}</button>
+        <input type="file" class="lb-audio-swap-input hidden" accept=".mp3,.wav,.flac,.m4a,.aac,.ogg,.wma" />
+        <button class="admin-btn-ghost btn-swap-audio" title="Upload a new mp3 for this entry right now — no need to open Edit">${entry.hasAudio ? '🎵 Swap song' : '🎵 Add song'}</button>
+        ${entry.hasAudio ? '<button class="admin-btn-ghost btn-remove-audio">Remove song</button>' : ''}
         <button class="admin-btn-ghost btn-edit">Edit</button>
         <button class="admin-btn-ghost btn-delete">Delete</button>
       </div>
@@ -766,6 +769,14 @@ function renderLeaderboardList(entries) {
     row.querySelector('.btn-winner').addEventListener('click', () => toggleLeaderboardWinner(entry));
     row.querySelector('.btn-stream-pick').addEventListener('click', () => toggleLeaderboardStreamTopPick(entry));
     row.querySelector('.admin-round-select').addEventListener('change', (e) => setLeaderboardEntryRound(entry.id, e.target.value));
+    const swapInput = row.querySelector('.lb-audio-swap-input');
+    const swapBtn = row.querySelector('.btn-swap-audio');
+    swapBtn.addEventListener('click', () => swapInput.click());
+    swapInput.addEventListener('change', () => {
+      if (swapInput.files[0]) swapLeaderboardAudio(entry, swapInput.files[0], swapBtn);
+    });
+    const removeAudioBtn = row.querySelector('.btn-remove-audio');
+    if (removeAudioBtn) removeAudioBtn.addEventListener('click', () => removeLeaderboardAudio(entry, removeAudioBtn));
     row.querySelector('.btn-edit').addEventListener('click', () => openLeaderboardEditForm(entry));
     row.querySelector('.btn-delete').addEventListener('click', () => deleteLeaderboardEntry(entry));
     listEl.appendChild(row);
@@ -802,6 +813,50 @@ async function deleteLeaderboardEntry(entry) {
   if (!confirm(`Delete the pick "${entry.artist} — ${entry.songTitle}"? This can't be undone.`)) return;
   await api('DELETE', `/api/admin/leaderboard/${entry.id}`);
   loadLeaderboardEntries();
+}
+
+// Straight-from-the-row swap: pick a new mp3 and it's live immediately, no
+// need to open Edit first. Carries the entry's existing artist/songTitle/
+// streamDate/link through unchanged -- this only ever touches the audio.
+async function swapLeaderboardAudio(entry, file, btn) {
+  const formData = new FormData();
+  formData.append('artist', entry.artist);
+  formData.append('songTitle', entry.songTitle);
+  formData.append('streamDate', entry.streamDate);
+  formData.append('link', entry.link || '');
+  formData.append('audio', file);
+
+  const originalText = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = 'Uploading…';
+  try {
+    await api('PUT', `/api/admin/leaderboard/${entry.id}`, formData);
+    loadLeaderboardEntries();
+  } catch (err) {
+    alert(err.message);
+    btn.disabled = false;
+    btn.textContent = originalText;
+  }
+}
+
+// Straight-from-the-row removal -- clears just the audio, entry stays.
+async function removeLeaderboardAudio(entry, btn) {
+  if (!confirm(`Remove the mp3 from "${entry.artist} — ${entry.songTitle}"? The entry itself stays — this only clears the audio.`)) return;
+  const formData = new FormData();
+  formData.append('artist', entry.artist);
+  formData.append('songTitle', entry.songTitle);
+  formData.append('streamDate', entry.streamDate);
+  formData.append('link', entry.link || '');
+  formData.append('removeAudio', 'true');
+
+  btn.disabled = true;
+  try {
+    await api('PUT', `/api/admin/leaderboard/${entry.id}`, formData);
+    loadLeaderboardEntries();
+  } catch (err) {
+    alert(err.message);
+    btn.disabled = false;
+  }
 }
 
 function resetLeaderboardForm() {
