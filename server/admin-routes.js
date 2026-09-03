@@ -1,6 +1,7 @@
 const express = require('express');
 const path = require('path');
 const fs = require('fs');
+const Stripe = require('stripe');
 
 const db = require('./db');
 const catalog = require('./catalog');
@@ -9,7 +10,10 @@ const { checkPassword, requireAuth } = require('./auth');
 const { audioUpload, imageUpload, extOf, AUDIO_DIR, ART_DIR, SUBMISSION_AUDIO_DIR } = require('./uploads');
 const { getDurationSeconds, generatePreviewClip } = require('./media');
 const { slugId } = require('./ids');
-const { sendProjectLiveEmail } = require('./email');
+const { sendProjectLiveEmail, sendAbandonedCheckoutEmail } = require('./email');
+const { fulfillOrder } = require('./fulfillment');
+
+const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '');
 
 const router = express.Router();
 
@@ -581,6 +585,64 @@ function csvRow(order) {
 router.get('/sales', (req, res) => {
   const sales = db.listSalesForReport({ from: req.query.from, to: req.query.to });
   res.json({ sales });
+});
+
+// Abandoned carts -- pending orders (Stripe Checkout started, never
+// finished). Unfiltered by date on purpose: there's normally only a
+// handful of these at once, and Ted wants to see the whole picture, not
+// just a date range.
+router.get('/sales/pending', (req, res) => {
+  const pending = db.listPendingOrdersForAdmin();
+  res.json({ pending });
+});
+
+// Manually push a recovery reminder for one abandoned cart -- this is the
+// ONLY thing that ever sends this email. There is no automatic sweep;
+// Ted asked for a button he controls instead of a background job emailing
+// fans without him knowing. Re-checks Stripe's live session status first:
+//   - already paid (a missed webhook) -- fulfill it now instead of sending
+//     a reminder for an order that's actually done.
+//   - session no longer open (expired) -- nothing useful to send; tell Ted
+//     rather than emailing a dead checkout link.
+//   - otherwise -- send the reminder, reusing the original (still-valid)
+//     Stripe-hosted checkout URL.
+router.post('/sales/pending/:orderId/remind', async (req, res) => {
+  try {
+    const order = db.getOrder(req.params.orderId);
+    if (!order) return res.status(404).json({ error: 'Order not found.' });
+    if (order.status !== 'pending') {
+      return res.status(400).json({ error: 'This order is no longer pending -- nothing to remind.' });
+    }
+
+    const session = await stripe.checkout.sessions.retrieve(order.id);
+
+    if (session.payment_status === 'paid') {
+      db.markOrderPaid(order.id);
+      await fulfillOrder(order.id);
+      return res.json({ ok: true, alreadyPaid: true });
+    }
+
+    if (session.status !== 'open') {
+      return res.status(400).json({
+        error: "This checkout link has expired -- there's nothing to resend. The fan would need to start a new order.",
+      });
+    }
+
+    const project = catalog.getProject(order.project_id);
+    await sendAbandonedCheckoutEmail({
+      to: order.email,
+      artistName: process.env.ARTIST_NAME || 'The Artist',
+      projectTitle: project ? project.title : 'your order',
+      checkoutUrl: session.url,
+      amountCents: order.amount_cents,
+      currency: order.currency,
+    });
+    db.markOrderReminderSent(order.id);
+    res.json({ ok: true, alreadyPaid: false });
+  } catch (err) {
+    console.error('[admin] send reminder failed:', err);
+    res.status(500).json({ error: 'Something went wrong sending the reminder.' });
+  }
 });
 
 router.get('/sales/export.csv', (req, res) => {

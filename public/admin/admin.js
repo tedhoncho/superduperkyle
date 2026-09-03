@@ -318,7 +318,7 @@ function renderSalesRows(sales) {
 
 document.getElementById('btn-view-sales').addEventListener('click', () => {
   showView('sales');
-  loadSales();
+  showSalesSubtab('completed');
 });
 document.getElementById('btn-sales-back').addEventListener('click', () => showView('dashboard'));
 document.getElementById('btn-sales-filter').addEventListener('click', loadSales);
@@ -326,6 +326,112 @@ document.getElementById('btn-sales-clear').addEventListener('click', () => {
   document.getElementById('sales-from').value = '';
   document.getElementById('sales-to').value = '';
   loadSales();
+});
+
+// Two sub-tabs under one Sales section: Completed (existing date-ranged
+// report) and Pending Carts (abandoned checkouts, unfiltered -- see
+// loadPendingCarts). Export CSV only makes sense for Completed today, so it
+// hides on the Pending Carts tab rather than exporting something it can't.
+function showSalesSubtab(tab) {
+  const isCompleted = tab === 'completed';
+  document.getElementById('sales-panel-completed').classList.toggle('hidden', !isCompleted);
+  document.getElementById('sales-panel-pending').classList.toggle('hidden', isCompleted);
+  document.getElementById('btn-sales-subtab-completed').classList.toggle('is-active', isCompleted);
+  document.getElementById('btn-sales-subtab-pending').classList.toggle('is-active', !isCompleted);
+  document.getElementById('btn-export-sales').classList.toggle('hidden', !isCompleted);
+  if (isCompleted) loadSales();
+  else loadPendingCarts();
+}
+document.getElementById('btn-sales-subtab-completed').addEventListener('click', () => showSalesSubtab('completed'));
+document.getElementById('btn-sales-subtab-pending').addEventListener('click', () => showSalesSubtab('pending'));
+
+// SQLite's datetime('now') stores UTC with no timezone suffix (e.g.
+// "2026-09-03 14:22:00") -- appending Z makes JS parse it as UTC instead of
+// silently treating it as local time, which would make every age wrong by
+// whatever the visitor's UTC offset is.
+function timeAgo(sqliteDateStr) {
+  const ms = Date.now() - new Date(`${sqliteDateStr.replace(' ', 'T')}Z`).getTime();
+  const hours = Math.floor(ms / 3600000);
+  if (hours < 1) return 'just now';
+  if (hours < 24) return `${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  return `${days}d ago`;
+}
+
+async function loadPendingCarts() {
+  const wrap = document.getElementById('pending-table-wrap');
+  wrap.innerHTML = '<p class="admin-loading">Loading…</p>';
+  const { pending } = await api('GET', '/api/admin/sales/pending');
+  renderPendingCarts(pending);
+}
+
+function renderPendingCarts(pending) {
+  const totalCents = pending.reduce((sum, o) => sum + o.amountCents, 0);
+  document.getElementById('pending-summary').innerHTML = `
+    <div class="admin-sales-metric"><span>${pending.length}</span>Pending cart${pending.length === 1 ? '' : 's'}</div>
+    <div class="admin-sales-metric"><span>${money(totalCents)}</span>Potential revenue</div>
+  `;
+
+  const wrap = document.getElementById('pending-table-wrap');
+  if (!pending.length) {
+    wrap.innerHTML = '<p class="admin-empty">No pending carts right now.</p>';
+    return;
+  }
+
+  wrap.innerHTML = `
+    <table class="admin-sales-table">
+      <thead>
+        <tr><th>Order #</th><th>Started</th><th>Project</th><th>Customer</th><th>Amount</th><th>Reminder sent?</th><th></th></tr>
+      </thead>
+      <tbody>
+        ${pending
+          .map(
+            (o) => `
+              <tr>
+                <td>${o.orderNumber || '—'}</td>
+                <td>${timeAgo(o.createdAt)}</td>
+                <td>${o.projectTitle}</td>
+                <td>${o.email}</td>
+                <td>${money(o.amountCents)}</td>
+                <td>${o.reminderSentAt ? 'Yes' : 'Not yet'}</td>
+                <td><button class="admin-btn-ghost btn-send-reminder" data-order-id="${salesAttr(o.stripeSessionId)}">${
+                  o.reminderSentAt ? 'Resend' : 'Send reminder'
+                }</button></td>
+              </tr>
+            `
+          )
+          .join('')}
+      </tbody>
+    </table>
+  `;
+}
+
+// Event delegation on the table wrap -- rows get rebuilt on every
+// loadPendingCarts() call, so listeners are attached here once rather than
+// re-bound per render.
+document.getElementById('pending-table-wrap').addEventListener('click', async (e) => {
+  const btn = e.target.closest('.btn-send-reminder');
+  if (!btn) return;
+
+  const statusEl = document.getElementById('pending-action-status');
+  statusEl.classList.add('hidden');
+  btn.disabled = true;
+  const originalLabel = btn.textContent;
+  btn.textContent = 'Sending…';
+
+  try {
+    const data = await api('POST', `/api/admin/sales/pending/${encodeURIComponent(btn.dataset.orderId)}/remind`);
+    statusEl.textContent = data.alreadyPaid
+      ? 'Stripe already shows this one as paid -- fulfilled it instead of sending a reminder.'
+      : 'Reminder email sent.';
+    statusEl.classList.remove('hidden');
+    loadPendingCarts();
+  } catch (err) {
+    statusEl.textContent = err.message || 'Something went wrong sending the reminder.';
+    statusEl.classList.remove('hidden');
+    btn.disabled = false;
+    btn.textContent = originalLabel;
+  }
 });
 
 // ---------- notifications ----------

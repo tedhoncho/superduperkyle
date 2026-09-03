@@ -326,27 +326,28 @@ function markOrderFulfilled(id) {
   ).run(id);
 }
 
-// Abandoned-checkout recovery: orders that are still 'pending' (fan started
-// Stripe Checkout but never finished paying), old enough that they've
-// genuinely wandered off (not just mid-checkout right now), young enough
-// that the original Stripe session is still safely inside its ~24h expiry
-// window, and haven't had a reminder sent yet. minAgeHours/maxAgeHours are
-// both in hours -- the sweep in server/index.js picks the actual window
-// (see ABANDONED_MIN_AGE_HOURS/ABANDONED_MAX_AGE_HOURS there).
-function listAbandonedOrders({ minAgeHours, maxAgeHours }) {
-  return db
-    .prepare(
-      `SELECT * FROM orders
-       WHERE status = 'pending'
-         AND reminder_sent_at IS NULL
-         AND created_at <= datetime('now', ?)
-         AND created_at >= datetime('now', ?)`
-    )
-    .all(`-${minAgeHours} hours`, `-${maxAgeHours} hours`);
-}
-
 function markOrderReminderSent(id) {
   db.prepare(`UPDATE orders SET reminder_sent_at = datetime('now') WHERE id = ?`).run(id);
+}
+
+// Admin visibility into abandoned carts (admin Sales > Pending Carts tab) --
+// every order still sitting at 'pending', regardless of age. Nothing here
+// sends anything on its own; the "Send reminder" button in admin-routes.js
+// is the only path that emails a fan.
+function listPendingOrdersForAdmin() {
+  return db
+    .prepare(
+      `SELECT orders.order_number AS orderNumber, orders.id AS stripeSessionId,
+              orders.created_at AS createdAt, orders.email AS email,
+              orders.amount_cents AS amountCents, orders.currency AS currency,
+              orders.reminder_sent_at AS reminderSentAt,
+              projects.title AS projectTitle, projects.type AS projectType
+       FROM orders
+       JOIN projects ON projects.id = orders.project_id
+       WHERE orders.status = 'pending'
+       ORDER BY orders.created_at DESC`
+    )
+    .all();
 }
 
 function getSettings() {
@@ -785,8 +786,8 @@ module.exports = {
   createOrder,
   markOrderPaid,
   markOrderFulfilled,
-  listAbandonedOrders,
   markOrderReminderSent,
+  listPendingOrdersForAdmin,
   getSettings,
   updateSettings,
   getOrder,

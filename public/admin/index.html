@@ -313,23 +313,39 @@
       </div>
     </header>
 
-    <div class="admin-sales-filters">
-      <label class="admin-field">
-        From
-        <input type="date" id="sales-from" />
-      </label>
-      <label class="admin-field">
-        To
-        <input type="date" id="sales-to" />
-      </label>
-      <button id="btn-sales-filter" class="admin-btn-ghost">Apply</button>
-      <button id="btn-sales-clear" class="admin-btn-ghost">Clear</button>
+    <div class="admin-subtabs">
+      <button id="btn-sales-subtab-completed" class="admin-subtab-btn is-active">Completed</button>
+      <button id="btn-sales-subtab-pending" class="admin-subtab-btn">Pending Carts</button>
     </div>
 
-    <div id="sales-summary" class="admin-sales-summary"></div>
+    <div id="sales-panel-completed">
+      <div class="admin-sales-filters">
+        <label class="admin-field">
+          From
+          <input type="date" id="sales-from" />
+        </label>
+        <label class="admin-field">
+          To
+          <input type="date" id="sales-to" />
+        </label>
+        <button id="btn-sales-filter" class="admin-btn-ghost">Apply</button>
+        <button id="btn-sales-clear" class="admin-btn-ghost">Clear</button>
+      </div>
 
-    <div id="sales-table-wrap" class="admin-panel">
-      <p class="admin-loading">Loading…</p>
+      <div id="sales-summary" class="admin-sales-summary"></div>
+
+      <div id="sales-table-wrap" class="admin-panel">
+        <p class="admin-loading">Loading…</p>
+      </div>
+    </div>
+
+    <div id="sales-panel-pending" class="hidden">
+      <p class="admin-hint">Orders where a fan started checkout but never finished paying. Nothing gets emailed automatically -- use "Send reminder" on a row when you want to nudge that fan.</p>
+      <p id="pending-action-status" class="admin-hint hidden" style="color: var(--accent);"></p>
+      <div id="pending-summary" class="admin-sales-summary"></div>
+      <div id="pending-table-wrap" class="admin-panel">
+        <p class="admin-loading">Loading…</p>
+      </div>
     </div>
   </div>
 

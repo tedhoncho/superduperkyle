@@ -12,7 +12,6 @@ const db = require('./db');
 const storage = require('./storage');
 const downloads = require('./downloads');
 const { fulfillOrder } = require('./fulfillment');
-const { sendAbandonedCheckoutEmail } = require('./email');
 const adminRoutes = require('./admin-routes');
 const twitch = require('./twitch');
 
@@ -20,13 +19,6 @@ const app = express();
 const PORT = process.env.PORT || 4242;
 const BASE_URL = process.env.BASE_URL || `http://localhost:${PORT}`;
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '');
-
-// Abandoned-checkout recovery window, in hours -- both bounds keep this
-// safely inside Stripe's ~24h default Checkout Session expiry, so the
-// original session.url is always still valid when the reminder goes out.
-const ABANDONED_MIN_AGE_HOURS = 1;
-const ABANDONED_MAX_AGE_HOURS = 20;
-const ABANDONED_SWEEP_INTERVAL_MS = 30 * 60 * 1000; // 30 minutes
 
 // Railway (and most hosts) terminate HTTPS at their edge, then forward
 // requests to this app over plain HTTP internally. Without this, Express
@@ -385,70 +377,6 @@ app.get('/api/download/:token', async (req, res) => {
   }
   return res.download(result.filePath, friendlyDownloadName(track.title, track.audioFile));
 });
-
-// --- Abandoned checkout recovery ---
-// A Stripe Checkout session gets created (order status stays 'pending') the
-// moment a fan clicks "Continue to payment" -- if they never actually pay,
-// nothing else in this app ever follows up. This sweep runs periodically
-// (not on every request, unlike sweepAutoReleases in db.js -- sending email
-// is a costly, once-only, latency-sensitive side effect, not something
-// safe to trigger on an arbitrary page load) and, for every pending order
-// old enough to have genuinely been abandoned but still young enough that
-// its Stripe session hasn't expired:
-//   - self-heals if Stripe actually shows it as paid (a missed webhook --
-//     rare, but cheap to check, and fixes itself instead of nagging a fan
-//     who already bought), otherwise
-//   - emails the fan a reminder reusing the original (still-valid)
-//     Stripe-hosted checkout URL, so no new session ever needs to be minted.
-// Either way the order is marked reminder_sent_at so it's only ever
-// evaluated once.
-async function sweepAbandonedCheckouts() {
-  let candidates;
-  try {
-    candidates = db.listAbandonedOrders({ minAgeHours: ABANDONED_MIN_AGE_HOURS, maxAgeHours: ABANDONED_MAX_AGE_HOURS });
-  } catch (err) {
-    console.error('[abandoned-checkout] failed to query candidate orders:', err.message);
-    return;
-  }
-
-  for (const order of candidates) {
-    try {
-      const session = await stripe.checkout.sessions.retrieve(order.id);
-
-      if (session.payment_status === 'paid') {
-        // Missed webhook -- they did pay, fulfill it now instead of nagging them.
-        db.markOrderPaid(order.id);
-        await fulfillOrder(order.id);
-        db.markOrderReminderSent(order.id);
-        continue;
-      }
-
-      if (session.status !== 'open') {
-        // Expired or otherwise no longer checkout-able -- nothing useful to
-        // send. Mark it so the sweep stops re-checking a dead session.
-        db.markOrderReminderSent(order.id);
-        continue;
-      }
-
-      const project = catalog.getProject(order.project_id);
-      await sendAbandonedCheckoutEmail({
-        to: order.email,
-        artistName: process.env.ARTIST_NAME || 'The Artist',
-        projectTitle: project ? project.title : 'your order',
-        checkoutUrl: session.url,
-        amountCents: order.amount_cents,
-        currency: order.currency,
-      });
-      db.markOrderReminderSent(order.id);
-    } catch (err) {
-      console.error('[abandoned-checkout] failed to process order', order.id, err.message);
-    }
-  }
-}
-
-setInterval(() => {
-  sweepAbandonedCheckouts().catch((err) => console.error('[abandoned-checkout] sweep threw:', err));
-}, ABANDONED_SWEEP_INTERVAL_MS);
 
 app.get('/health', (req, res) => res.json({ ok: true }));
 
