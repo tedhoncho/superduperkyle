@@ -88,6 +88,73 @@ app.use(
 
 app.use('/api/admin', adminRoutes);
 
+// Social-preview tags (Open Graph + Twitter Card) for the homepage and for
+// individual song links (see /song/:id below and the "Copy link" button in
+// the storefront). These can't just live as static <meta> tags in
+// index.html because a song's title/art differ per link and the image tag
+// has to be an absolute URL for Facebook/Discord/Twitter's scrapers to
+// fetch it -- so this reads the template fresh per request (matches
+// catalog.js's "no cache" approach) and fills in the right title,
+// description, and image before sending it. Everything else about the page
+// -- the actual app, styling, behavior -- is completely unchanged; this
+// only touches what shows up in a link preview.
+function escapeHtml(s) {
+  return String(s || '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+}
+
+function truncate(s, max) {
+  return s.length <= max ? s : `${s.slice(0, max - 1).trimEnd()}…`;
+}
+
+function renderIndexHtml({ project, req }) {
+  const template = fs.readFileSync(path.join(__dirname, '..', 'public', 'index.html'), 'utf8');
+  const origin = `${req.protocol}://${req.get('host')}`;
+
+  let title;
+  let description;
+  let image;
+  let ogType;
+  let canonicalUrl;
+
+  if (project) {
+    title = `${project.title} — Super Duper Kyle`;
+    const desc = (project.description || '').trim();
+    description = desc ? truncate(desc, 200) : `Buy "${project.title}" direct from Super Duper Kyle — no streaming middleman.`;
+    image = project.coverArtFile ? `${origin}/art/${project.coverArtFile}` : `${origin}/images/kyle-heart-logo.png`;
+    ogType = 'music.song';
+    canonicalUrl = `${origin}/song/${encodeURIComponent(project.id)}`;
+  } else {
+    title = 'Super Duper Kyle — Music Store';
+    description = 'Buy songs and projects direct — no streaming middleman.';
+    image = `${origin}/images/kyle-heart-logo.png`;
+    ogType = 'website';
+    canonicalUrl = origin + req.originalUrl;
+  }
+
+  const metaBlock = `
+<meta property="og:type" content="${ogType}" />
+<meta property="og:title" content="${escapeHtml(title)}" />
+<meta property="og:description" content="${escapeHtml(description)}" />
+<meta property="og:image" content="${escapeHtml(image)}" />
+<meta property="og:url" content="${escapeHtml(canonicalUrl)}" />
+<meta name="twitter:card" content="summary_large_image" />
+<meta name="twitter:title" content="${escapeHtml(title)}" />
+<meta name="twitter:description" content="${escapeHtml(description)}" />
+<meta name="twitter:image" content="${escapeHtml(image)}" />`;
+
+  return template.replace(
+    '<title>Super Duper Kyle — Music Store</title>',
+    `<title>${escapeHtml(title)}</title>
+${metaBlock}`
+  );
+}
+
+// Root route has to come before express.static so this handler -- not the
+// static middleware's default index.html behavior -- is what answers "/".
+app.get('/', (req, res) => {
+  res.send(renderIndexHtml({ project: null, req }));
+});
+
 app.use(express.static(path.join(__dirname, '..', 'public')));
 app.use('/art', express.static(path.join(__dirname, '..', 'data', 'art')));
 
@@ -380,12 +447,14 @@ app.get('/api/download/:token', async (req, res) => {
 
 // Direct-link support: a song's shareable URL (e.g. /song/another-love-song-ab12)
 // -- copied via the "Copy link" button in the storefront modal. There's no
-// separate page to render; this just serves the same single-page app, and
+// separate page to render; this serves the same single-page app (through
+// renderIndexHtml, so the preview card matches this specific song), and
 // public/app.js reads the :id out of the URL on load and opens that song's
 // modal automatically. Falls through harmlessly to the normal catalog view
-// if the id doesn't match anything.
+// (generic preview tags included) if the id doesn't match anything.
 app.get('/song/:id', (req, res) => {
-  res.sendFile(path.join(__dirname, '..', 'public', 'index.html'));
+  const project = catalog.getProject(req.params.id);
+  res.send(renderIndexHtml({ project, req }));
 });
 
 app.get('/health', (req, res) => res.json({ ok: true }));
