@@ -17,6 +17,8 @@ const modalNotifyForm = document.getElementById('modal-notify-form');
 const modalNotifyEmail = document.getElementById('modal-notify-email');
 const modalNotifyButton = document.getElementById('modal-notify-button');
 const modalNotifyStatus = document.getElementById('modal-notify-status');
+const modalCopyLinkButton = document.getElementById('modal-copy-link');
+const modalCopyLinkStatus = document.getElementById('modal-copy-link-status');
 
 let currentProject = null;
 let currentAudio = null;
@@ -37,6 +39,17 @@ async function loadCatalog() {
   const res = await fetch('/api/catalog');
   const data = await res.json();
   renderCatalog(data.projects);
+  openProjectFromUrl(data.projects);
+}
+
+// Deep-linking: a song's shareable URL is /song/<id> (see the "Copy link"
+// button and server/index.js). On first load, if the URL points at a real
+// project, open straight to its modal instead of the bare catalog view.
+function openProjectFromUrl(projects) {
+  const match = window.location.pathname.match(/^\/song\/([^/]+)\/?$/);
+  if (!match) return;
+  const project = projects.find((p) => p.id === decodeURIComponent(match[1]));
+  if (project) openModal(project);
 }
 
 // --- Header tagline + release countdown ---
@@ -256,6 +269,8 @@ function renderModalTrackList(project) {
 
 function openModal(project) {
   currentProject = project;
+  history.pushState({}, '', `/song/${encodeURIComponent(project.id)}`);
+  modalCopyLinkStatus.classList.add('hidden');
   modalError.classList.add('hidden');
   modalEmail.value = '';
   modalNotifyEmail.value = '';
@@ -343,14 +358,27 @@ function openModal(project) {
   modalBackdrop.classList.remove('hidden');
 }
 
-function closeModal() {
+function closeModal({ updateUrl = true } = {}) {
   modalBackdrop.classList.add('hidden');
   currentProject = null;
+  if (updateUrl && window.location.pathname.startsWith('/song/')) {
+    history.pushState({}, '', '/');
+  }
 }
 
 document.getElementById('modal-close').addEventListener('click', closeModal);
 modalBackdrop.addEventListener('click', (e) => {
   if (e.target === modalBackdrop) closeModal();
+});
+
+// A fan who opened a song link and hits the browser's back button should
+// land back on the plain catalog view, not a bare URL with the modal still
+// open. updateUrl:false because the browser already changed the address bar
+// for us -- pushing again here would just add a duplicate history entry.
+window.addEventListener('popstate', () => {
+  if (currentProject && !window.location.pathname.startsWith('/song/')) {
+    closeModal({ updateUrl: false });
+  }
 });
 
 modalPayButton.addEventListener('click', async () => {
@@ -427,6 +455,20 @@ modalNotifyButton.addEventListener('click', async () => {
     modalNotifyStatus.classList.remove('hidden');
     modalNotifyButton.disabled = false;
     modalNotifyButton.textContent = 'Notify me';
+  }
+});
+
+modalCopyLinkButton.addEventListener('click', async () => {
+  if (!currentProject) return;
+  const url = `${window.location.origin}/song/${encodeURIComponent(currentProject.id)}`;
+  modalCopyLinkStatus.classList.remove('hidden');
+  try {
+    await navigator.clipboard.writeText(url);
+    modalCopyLinkStatus.textContent = 'Link copied!';
+  } catch (err) {
+    // Clipboard API can be blocked (older browsers, non-HTTPS) -- fall back
+    // to just showing the link so a fan can still copy it by hand.
+    modalCopyLinkStatus.textContent = url;
   }
 });
 

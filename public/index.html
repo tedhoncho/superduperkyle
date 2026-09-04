@@ -89,7 +89,11 @@
         <input type="email" id="modal-email" placeholder="you@example.com" required />
       </label>
 
-      <button id="modal-pay-button" class="pay-button">Continue to payment</button>
+      <div class="modal-actions">
+        <button id="modal-pay-button" class="pay-button">Continue to payment</button>
+        <button id="modal-copy-link" type="button" class="btn-copy-link" title="Copy a link to this song">Copy link</button>
+      </div>
+      <p id="modal-copy-link-status" class="copy-link-status hidden">Link copied!</p>
       <p id="modal-error" class="modal-error hidden"></p>
       <p class="fine-print">Secure checkout via Stripe. Your download links also get emailed to you.</p>
     </div>

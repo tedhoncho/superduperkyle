@@ -410,6 +410,22 @@ body {
 .pay-button:hover { filter: brightness(1.05); }
 .pay-button:disabled { opacity: 0.6; cursor: wait; }
 
+.modal-actions { display: flex; gap: 8px; align-items: stretch; }
+.modal-actions .pay-button { flex: 1; }
+.btn-copy-link {
+  padding: 0 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--text);
+  font-weight: 700;
+  font-size: 13px;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.btn-copy-link:hover { background: var(--accent); color: var(--accent-text); border-color: var(--accent); }
+.copy-link-status { font-size: 12px; color: var(--text-dim); text-align: center; margin: 8px 0 0; word-break: break-all; }
+
 .modal-error { color: var(--danger); font-size: 13px; margin-top: 10px; }
 .fine-print { color: var(--text-dim); font-size: 11px; text-align: center; margin-top: 14px; }
 

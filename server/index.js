@@ -378,6 +378,16 @@ app.get('/api/download/:token', async (req, res) => {
   return res.download(result.filePath, friendlyDownloadName(track.title, track.audioFile));
 });
 
+// Direct-link support: a song's shareable URL (e.g. /song/another-love-song-ab12)
+// -- copied via the "Copy link" button in the storefront modal. There's no
+// separate page to render; this just serves the same single-page app, and
+// public/app.js reads the :id out of the URL on load and opens that song's
+// modal automatically. Falls through harmlessly to the normal catalog view
+// if the id doesn't match anything.
+app.get('/song/:id', (req, res) => {
+  res.sendFile(path.join(__dirname, '..', 'public', 'index.html'));
+});
+
 app.get('/health', (req, res) => res.json({ ok: true }));
 
 const server = app.listen(PORT, () => {
