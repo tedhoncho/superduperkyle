@@ -57,6 +57,12 @@ app.post('/api/webhook', express.raw({ type: 'application/json' }), async (req, 
       if (!result.ok) {
         console.error('[webhook] fulfillment failed for session', session.id, result.reason);
       }
+      if (result.syncFailed) {
+        // Fulfillment is idempotent, so Stripe can safely retry this event.
+        // The next attempt only retries the reporting sync; it never issues
+        // duplicate download tokens or sends a second fulfillment email.
+        return res.status(500).send('sales sync error');
+      }
     } catch (err) {
       console.error('[webhook] fulfillment threw:', err);
       // Return 500 so Stripe retries the webhook.

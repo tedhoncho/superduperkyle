@@ -8,6 +8,17 @@ const catalog = require('./catalog');
 const db = require('./db');
 const downloads = require('./downloads');
 const { sendDownloadEmail, sendSaleNotification } = require('./email');
+const moonSync = require('./moon-sync');
+
+async function syncSaleWithoutBlockingCustomer(order, project) {
+  try {
+    await moonSync.syncSale(order, project);
+    return false;
+  } catch (err) {
+    console.error('[fulfillment] To the Moon sync failed:', err.message);
+    return true;
+  }
+}
 
 async function fulfillOrder(orderId) {
   const order = db.getOrder(orderId);
@@ -21,7 +32,8 @@ async function fulfillOrder(orderId) {
       token: row.token,
       track: project.tracks.find((t) => t.id === row.track_id),
     }));
-    return { ok: true, order, tokens, alreadyFulfilled: true };
+    const syncFailed = project ? await syncSaleWithoutBlockingCustomer(order, project) : false;
+    return { ok: true, order, tokens, alreadyFulfilled: true, syncFailed };
   }
 
   const project = catalog.getProject(order.project_id);
@@ -63,7 +75,13 @@ async function fulfillOrder(orderId) {
 
   db.markOrderFulfilled(orderId);
 
-  return { ok: true, order, tokens, alreadyFulfilled: false };
+  // The customer already has their download tokens before this runs. If the
+  // reporting service is temporarily unavailable, the Stripe webhook is told
+  // to retry while the success page can still give the customer their files.
+  const fulfilledOrder = db.getOrder(orderId) || order;
+  const syncFailed = await syncSaleWithoutBlockingCustomer(fulfilledOrder, project);
+
+  return { ok: true, order: fulfilledOrder, tokens, alreadyFulfilled: false, syncFailed };
 }
 
 module.exports = { fulfillOrder };
