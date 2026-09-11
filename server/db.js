@@ -74,6 +74,19 @@ CREATE TABLE IF NOT EXISTS download_tokens (
 
 CREATE INDEX IF NOT EXISTS idx_tokens_order ON download_tokens(order_id);
 
+-- One-way reporting outbox. Checkout and fulfillment only write a small
+-- local receipt here; a background worker sends it to To the Moon later.
+-- Nothing in the store waits for or reads back from To the Moon.
+CREATE TABLE IF NOT EXISTS moon_sync_queue (
+  external_id TEXT PRIMARY KEY,
+  payload_json TEXT NOT NULL,
+  attempts INTEGER NOT NULL DEFAULT 0,
+  next_attempt_at TEXT NOT NULL DEFAULT (datetime('now')),
+  synced_at TEXT,
+  last_error TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
 -- Feature Contest leaderboard: picks Kyle makes live on his Twitch stream
 -- from fan submissions, added by hand after each stream. rank_position is a
 -- manual up/down order (same idea as projects.display_order) kept ready for
@@ -485,6 +498,39 @@ function listSalesForReport({ from, to } = {}) {
     .all(params);
 }
 
+function enqueueMoonSale({ externalId, payload }) {
+  db.prepare(
+    `INSERT INTO moon_sync_queue (external_id, payload_json)
+     VALUES (?, ?)
+     ON CONFLICT(external_id) DO UPDATE SET payload_json = excluded.payload_json`
+  ).run(externalId, JSON.stringify(payload));
+}
+
+function listPendingMoonSales(limit = 20) {
+  return db.prepare(
+    `SELECT external_id AS externalId, payload_json AS payloadJson, attempts
+     FROM moon_sync_queue
+     WHERE synced_at IS NULL AND datetime(next_attempt_at) <= datetime('now')
+     ORDER BY created_at ASC LIMIT ?`
+  ).all(limit);
+}
+
+function markMoonSaleSynced(externalId) {
+  db.prepare(
+    `UPDATE moon_sync_queue SET synced_at = datetime('now'), last_error = NULL WHERE external_id = ?`
+  ).run(externalId);
+}
+
+function markMoonSaleRetry(externalId, error) {
+  db.prepare(
+    `UPDATE moon_sync_queue
+     SET attempts = attempts + 1,
+         next_attempt_at = datetime('now', '+' || min(60, 1 << min(attempts, 6)) || ' minutes'),
+         last_error = ?
+     WHERE external_id = ?`
+  ).run(String(error || 'sync failed').slice(0, 500), externalId);
+}
+
 function insertDownloadToken({ token, orderId, projectId, trackId, usesRemaining, expiresAt }) {
   db.prepare(
     `INSERT INTO download_tokens (token, order_id, project_id, track_id, uses_remaining, expires_at)
@@ -815,6 +861,10 @@ module.exports = {
   updateSettings,
   getOrder,
   listSalesForReport,
+  enqueueMoonSale,
+  listPendingMoonSales,
+  markMoonSaleSynced,
+  markMoonSaleRetry,
   insertDownloadToken,
   getTokensForOrder,
   getToken,

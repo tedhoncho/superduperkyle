@@ -1,4 +1,7 @@
 const crypto = require('crypto');
+const db = require('./db');
+
+let flushing = false;
 
 function isConfigured() {
   return Boolean(process.env.TO_THE_MOON_SYNC_URL && process.env.TO_THE_MOON_SYNC_SECRET);
@@ -25,10 +28,8 @@ function sign(body, secret) {
   return crypto.createHmac('sha256', secret).update(body).digest('hex');
 }
 
-async function syncSale(order, project) {
-  if (!isConfigured()) return { ok: true, skipped: true };
-
-  const body = JSON.stringify(buildSalePayload(order, project));
+async function sendPayload(payload) {
+  const body = JSON.stringify(payload);
   const response = await fetch(process.env.TO_THE_MOON_SYNC_URL, {
     method: 'POST',
     headers: {
@@ -44,7 +45,36 @@ async function syncSale(order, project) {
     throw new Error(`To the Moon returned ${response.status}${detail ? `: ${detail.slice(0, 240)}` : ''}`);
   }
 
-  return { ok: true, skipped: false };
 }
 
-module.exports = { buildSalePayload, isConfigured, sign, syncSale };
+function queueSale(order, project) {
+  const payload = buildSalePayload(order, project);
+  db.enqueueMoonSale({ externalId: payload.externalId, payload });
+}
+
+async function flushQueue() {
+  if (flushing || !isConfigured()) return;
+  flushing = true;
+  try {
+    for (const row of db.listPendingMoonSales()) {
+      try {
+        await sendPayload(JSON.parse(row.payloadJson));
+        db.markMoonSaleSynced(row.externalId);
+      } catch (err) {
+        db.markMoonSaleRetry(row.externalId, err.message);
+        console.error('[moon-sync] delivery failed:', err.message);
+      }
+    }
+  } finally {
+    flushing = false;
+  }
+}
+
+function startWorker() {
+  const first = setTimeout(flushQueue, 1000);
+  first.unref();
+  const interval = setInterval(flushQueue, 60_000);
+  interval.unref();
+}
+
+module.exports = { buildSalePayload, flushQueue, isConfigured, queueSale, sendPayload, sign, startWorker };

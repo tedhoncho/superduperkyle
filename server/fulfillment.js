@@ -10,17 +10,17 @@ const downloads = require('./downloads');
 const { sendDownloadEmail, sendSaleNotification } = require('./email');
 const moonSync = require('./moon-sync');
 
-async function syncSaleWithoutBlockingCustomer(order, project) {
+function queueSaleWithoutBlockingCustomer(order, project) {
   try {
-    await moonSync.syncSale(order, project);
-    return false;
+    moonSync.queueSale(order, project);
   } catch (err) {
-    console.error('[fulfillment] To the Moon sync failed:', err.message);
-    return true;
+    // Reporting can never make checkout or fulfillment fail. The normal CSV
+    // reconciliation remains available if even this local queue write fails.
+    console.error('[fulfillment] could not queue To the Moon receipt:', err.message);
   }
 }
 
-async function fulfillOrder(orderId, { syncToMoon = false } = {}) {
+async function fulfillOrder(orderId) {
   const order = db.getOrder(orderId);
   if (!order) return { ok: false, reason: 'order_not_found' };
 
@@ -32,8 +32,8 @@ async function fulfillOrder(orderId, { syncToMoon = false } = {}) {
       token: row.token,
       track: project.tracks.find((t) => t.id === row.track_id),
     }));
-    const syncFailed = syncToMoon && project ? await syncSaleWithoutBlockingCustomer(order, project) : false;
-    return { ok: true, order, tokens, alreadyFulfilled: true, syncFailed };
+    if (project) queueSaleWithoutBlockingCustomer(order, project);
+    return { ok: true, order, tokens, alreadyFulfilled: true };
   }
 
   const project = catalog.getProject(order.project_id);
@@ -79,9 +79,9 @@ async function fulfillOrder(orderId, { syncToMoon = false } = {}) {
   // reporting service is temporarily unavailable, the Stripe webhook is told
   // to retry while the success page can still give the customer their files.
   const fulfilledOrder = db.getOrder(orderId) || order;
-  const syncFailed = syncToMoon ? await syncSaleWithoutBlockingCustomer(fulfilledOrder, project) : false;
+  queueSaleWithoutBlockingCustomer(fulfilledOrder, project);
 
-  return { ok: true, order: fulfilledOrder, tokens, alreadyFulfilled: false, syncFailed };
+  return { ok: true, order: fulfilledOrder, tokens, alreadyFulfilled: false };
 }
 
 module.exports = { fulfillOrder };

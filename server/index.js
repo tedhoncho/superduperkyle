@@ -14,6 +14,7 @@ const downloads = require('./downloads');
 const { fulfillOrder } = require('./fulfillment');
 const adminRoutes = require('./admin-routes');
 const twitch = require('./twitch');
+const moonSync = require('./moon-sync');
 
 const app = express();
 const PORT = process.env.PORT || 4242;
@@ -53,15 +54,9 @@ app.post('/api/webhook', express.raw({ type: 'application/json' }), async (req, 
     const session = event.data.object;
     try {
       db.markOrderPaid(session.id);
-      const result = await fulfillOrder(session.id, { syncToMoon: true });
+      const result = await fulfillOrder(session.id);
       if (!result.ok) {
         console.error('[webhook] fulfillment failed for session', session.id, result.reason);
-      }
-      if (result.syncFailed) {
-        // Fulfillment is idempotent, so Stripe can safely retry this event.
-        // The next attempt only retries the reporting sync; it never issues
-        // duplicate download tokens or sends a second fulfillment email.
-        return res.status(500).send('sales sync error');
       }
     } catch (err) {
       console.error('[webhook] fulfillment threw:', err);
@@ -74,6 +69,9 @@ app.post('/api/webhook', express.raw({ type: 'application/json' }), async (req, 
 });
 
 app.use(express.json());
+
+// Outbound reporting runs independently from every customer request.
+moonSync.startWorker();
 
 if (!process.env.SESSION_SECRET) {
   console.warn('[startup] SESSION_SECRET is not set — using an insecure default. Set it in .env before deploying.');
