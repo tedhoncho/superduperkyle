@@ -53,7 +53,7 @@ app.post('/api/webhook', express.raw({ type: 'application/json' }), async (req, 
     const session = event.data.object;
     try {
       db.markOrderPaid(session.id);
-      const result = await fulfillOrder(session.id);
+      const result = await fulfillOrder(session.id, { syncToMoon: true });
       if (!result.ok) {
         console.error('[webhook] fulfillment failed for session', session.id, result.reason);
       }

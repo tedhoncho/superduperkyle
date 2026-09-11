@@ -20,7 +20,7 @@ async function syncSaleWithoutBlockingCustomer(order, project) {
   }
 }
 
-async function fulfillOrder(orderId) {
+async function fulfillOrder(orderId, { syncToMoon = false } = {}) {
   const order = db.getOrder(orderId);
   if (!order) return { ok: false, reason: 'order_not_found' };
 
@@ -32,7 +32,7 @@ async function fulfillOrder(orderId) {
       token: row.token,
       track: project.tracks.find((t) => t.id === row.track_id),
     }));
-    const syncFailed = project ? await syncSaleWithoutBlockingCustomer(order, project) : false;
+    const syncFailed = syncToMoon && project ? await syncSaleWithoutBlockingCustomer(order, project) : false;
     return { ok: true, order, tokens, alreadyFulfilled: true, syncFailed };
   }
 
@@ -79,7 +79,7 @@ async function fulfillOrder(orderId) {
   // reporting service is temporarily unavailable, the Stripe webhook is told
   // to retry while the success page can still give the customer their files.
   const fulfilledOrder = db.getOrder(orderId) || order;
-  const syncFailed = await syncSaleWithoutBlockingCustomer(fulfilledOrder, project);
+  const syncFailed = syncToMoon ? await syncSaleWithoutBlockingCustomer(fulfilledOrder, project) : false;
 
   return { ok: true, order: fulfilledOrder, tokens, alreadyFulfilled: false, syncFailed };
 }
