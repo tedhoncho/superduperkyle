@@ -367,9 +367,12 @@ function timeAgo(sqliteDateStr) {
 async function loadPendingCarts() {
   const wrap = document.getElementById('pending-table-wrap');
   wrap.innerHTML = '<p class="admin-loading">Loading…</p>';
-  const { pending } = await api('GET', '/api/admin/sales/pending');
+  const includeDismissed = document.getElementById('pending-show-dismissed').checked;
+  const { pending } = await api('GET', `/api/admin/sales/pending${includeDismissed ? '?includeDismissed=1' : ''}`);
   renderPendingCarts(pending);
 }
+
+document.getElementById('pending-show-dismissed').addEventListener('change', loadPendingCarts);
 
 function renderPendingCarts(pending) {
   const totalCents = pending.reduce((sum, o) => sum + o.amountCents, 0);
@@ -393,16 +396,23 @@ function renderPendingCarts(pending) {
         ${pending
           .map(
             (o) => `
-              <tr>
+              <tr class="${o.pendingDismissedAt ? 'is-dismissed' : ''}">
                 <td>${o.orderNumber || '—'}</td>
                 <td>${timeAgo(o.createdAt)}</td>
                 <td>${o.projectTitle}</td>
                 <td>${o.email}</td>
                 <td>${money(o.amountCents)}</td>
                 <td>${o.reminderSentAt ? 'Yes' : 'Not yet'}</td>
-                <td><button class="admin-btn-ghost btn-send-reminder" data-order-id="${salesAttr(o.stripeSessionId)}">${
-                  o.reminderSentAt ? 'Resend' : 'Send reminder'
-                }</button></td>
+                <td class="admin-sales-actions">
+                  ${
+                    o.pendingDismissedAt
+                      ? `<button class="admin-btn-ghost btn-restore-pending" data-order-id="${salesAttr(o.stripeSessionId)}">Restore</button>`
+                      : `<button class="admin-btn-ghost btn-send-reminder" data-order-id="${salesAttr(o.stripeSessionId)}">${
+                          o.reminderSentAt ? 'Resend' : 'Send reminder'
+                        }</button>
+                        <button class="admin-btn-ghost btn-dismiss-pending" data-order-id="${salesAttr(o.stripeSessionId)}" title="Stop showing this one -- it stays pending, just out of your way">Dismiss</button>`
+                  }
+                </td>
               </tr>
             `
           )
@@ -416,10 +426,43 @@ function renderPendingCarts(pending) {
 // loadPendingCarts() call, so listeners are attached here once rather than
 // re-bound per render.
 document.getElementById('pending-table-wrap').addEventListener('click', async (e) => {
+  const statusEl = document.getElementById('pending-action-status');
+
+  const dismissBtn = e.target.closest('.btn-dismiss-pending');
+  if (dismissBtn) {
+    dismissBtn.disabled = true;
+    try {
+      await api('POST', `/api/admin/sales/pending/${encodeURIComponent(dismissBtn.dataset.orderId)}/dismiss`);
+      statusEl.textContent = 'Dismissed -- still pending under the hood, just out of this list. Check "Show dismissed" to bring it back.';
+      statusEl.classList.remove('hidden');
+      loadPendingCarts();
+    } catch (err) {
+      statusEl.textContent = err.message || 'Something went wrong dismissing that one.';
+      statusEl.classList.remove('hidden');
+      dismissBtn.disabled = false;
+    }
+    return;
+  }
+
+  const restoreBtn = e.target.closest('.btn-restore-pending');
+  if (restoreBtn) {
+    restoreBtn.disabled = true;
+    try {
+      await api('POST', `/api/admin/sales/pending/${encodeURIComponent(restoreBtn.dataset.orderId)}/undismiss`);
+      statusEl.textContent = 'Restored to the pending list.';
+      statusEl.classList.remove('hidden');
+      loadPendingCarts();
+    } catch (err) {
+      statusEl.textContent = err.message || 'Something went wrong restoring that one.';
+      statusEl.classList.remove('hidden');
+      restoreBtn.disabled = false;
+    }
+    return;
+  }
+
   const btn = e.target.closest('.btn-send-reminder');
   if (!btn) return;
 
-  const statusEl = document.getElementById('pending-action-status');
   statusEl.classList.add('hidden');
   btn.disabled = true;
   const originalLabel = btn.textContent;

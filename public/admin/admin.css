@@ -352,3 +352,16 @@ body { background: var(--surface-2); }
   letter-spacing: normal;
   font-weight: 400;
 }
+
+
+.admin-inline-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: var(--text-dim, #6b6b70);
+  margin: 8px 0 0;
+  cursor: pointer;
+}
+.admin-sales-table tr.is-dismissed { opacity: 0.5; }
+.admin-sales-actions { display: flex; gap: 6px; flex-wrap: wrap; }

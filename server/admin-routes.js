@@ -592,8 +592,28 @@ router.get('/sales', (req, res) => {
 // handful of these at once, and Ted wants to see the whole picture, not
 // just a date range.
 router.get('/sales/pending', (req, res) => {
-  const pending = db.listPendingOrdersForAdmin();
+  const includeDismissed = req.query.includeDismissed === '1';
+  const pending = db.listPendingOrdersForAdmin({ includeDismissed });
   res.json({ pending });
+});
+
+// "Dismiss" just stops a stale abandoned cart from cluttering the Pending
+// Carts view -- it does NOT touch the order (still 'pending', still
+// self-heals correctly if the fan eventually pays). Undismiss is the
+// mirror action for a misclick, since there's no way to tell from the list
+// alone whether a row was dismissed on purpose.
+router.post('/sales/pending/:orderId/dismiss', (req, res) => {
+  const order = db.getOrder(req.params.orderId);
+  if (!order) return res.status(404).json({ error: 'Order not found.' });
+  db.markOrderPendingDismissed(order.id);
+  res.json({ ok: true });
+});
+
+router.post('/sales/pending/:orderId/undismiss', (req, res) => {
+  const order = db.getOrder(req.params.orderId);
+  if (!order) return res.status(404).json({ error: 'Order not found.' });
+  db.markOrderPendingUndismissed(order.id);
+  res.json({ ok: true });
 });
 
 // Manually push a recovery reminder for one abandoned cart -- this is the

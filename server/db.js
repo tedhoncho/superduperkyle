@@ -292,6 +292,17 @@ if (!orderColumns.includes('reminder_sent_at')) {
   db.exec(`ALTER TABLE orders ADD COLUMN reminder_sent_at TEXT`);
 }
 
+// --- Migration: orders.pending_dismissed_at -- lets Ted clear a stale
+// abandoned cart out of the admin Pending Carts view without touching the
+// order itself. This is purely a "stop showing me this one" flag: the
+// order stays 'pending' in every other respect (still self-heals correctly
+// if the fan eventually pays, still counts wherever pending orders are
+// counted elsewhere) -- dismissing just hides the row by default. NULL =
+// not dismissed. ---
+if (!orderColumns.includes('pending_dismissed_at')) {
+  db.exec(`ALTER TABLE orders ADD COLUMN pending_dismissed_at TEXT`);
+}
+
 // --- New table: notify_signups -- fans who left their email on a Coming
 // Soon project asking to be told the moment it's buyable. One row per
 // (project, email) pair; UNIQUE stops a fan queuing up duplicate signups
@@ -330,21 +341,31 @@ function markOrderReminderSent(id) {
   db.prepare(`UPDATE orders SET reminder_sent_at = datetime('now') WHERE id = ?`).run(id);
 }
 
+function markOrderPendingDismissed(id) {
+  db.prepare(`UPDATE orders SET pending_dismissed_at = datetime('now') WHERE id = ?`).run(id);
+}
+
+function markOrderPendingUndismissed(id) {
+  db.prepare(`UPDATE orders SET pending_dismissed_at = NULL WHERE id = ?`).run(id);
+}
+
 // Admin visibility into abandoned carts (admin Sales > Pending Carts tab) --
 // every order still sitting at 'pending', regardless of age. Nothing here
 // sends anything on its own; the "Send reminder" button in admin-routes.js
 // is the only path that emails a fan.
-function listPendingOrdersForAdmin() {
+function listPendingOrdersForAdmin({ includeDismissed = false } = {}) {
   return db
     .prepare(
       `SELECT orders.order_number AS orderNumber, orders.id AS stripeSessionId,
               orders.created_at AS createdAt, orders.email AS email,
               orders.amount_cents AS amountCents, orders.currency AS currency,
               orders.reminder_sent_at AS reminderSentAt,
+              orders.pending_dismissed_at AS pendingDismissedAt,
               projects.title AS projectTitle, projects.type AS projectType
        FROM orders
        JOIN projects ON projects.id = orders.project_id
        WHERE orders.status = 'pending'
+       ${includeDismissed ? '' : 'AND orders.pending_dismissed_at IS NULL'}
        ORDER BY orders.created_at DESC`
     )
     .all();
@@ -787,6 +808,8 @@ module.exports = {
   markOrderPaid,
   markOrderFulfilled,
   markOrderReminderSent,
+  markOrderPendingDismissed,
+  markOrderPendingUndismissed,
   listPendingOrdersForAdmin,
   getSettings,
   updateSettings,
