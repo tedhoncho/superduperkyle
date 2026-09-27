@@ -15,6 +15,7 @@ const { fulfillOrder } = require('./fulfillment');
 const adminRoutes = require('./admin-routes');
 const twitch = require('./twitch');
 const moonSync = require('./moon-sync');
+const payouts = require('./payouts');
 
 const app = express();
 const PORT = process.env.PORT || 4242;
@@ -72,6 +73,10 @@ app.use(express.json());
 
 // Outbound reporting runs independently from every customer request.
 moonSync.startWorker();
+
+// Contributor payouts run on their own timer too -- see payouts.js for why
+// this deliberately isn't tied to admin page loads.
+payouts.startPayoutTimer();
 
 if (!process.env.SESSION_SECRET) {
   console.warn('[startup] SESSION_SECRET is not set — using an insecure default. Set it in .env before deploying.');

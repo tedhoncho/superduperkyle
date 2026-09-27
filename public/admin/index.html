@@ -28,6 +28,7 @@
         <button id="btn-view-site" class="admin-btn-ghost">Site</button>
         <button id="btn-view-leaderboard" class="admin-btn-ghost">Leaderboard</button>
         <button id="btn-view-notifications" class="admin-btn-ghost">Notifications</button>
+        <button id="btn-view-contributors" class="admin-btn-ghost">Contributors</button>
         <button id="btn-view-sales" class="admin-btn-ghost">Sales</button>
         <button id="btn-new-project" class="admin-btn-primary">+ New Song or Album</button>
         <button id="btn-logout" class="admin-btn-ghost">Log Out</button>
@@ -304,6 +305,46 @@
     </section>
   </div>
 
+  <!-- ===================== CONTRIBUTORS ===================== -->
+  <div id="view-contributors" class="admin-shell hidden">
+    <header class="admin-header">
+      <button id="btn-contributors-back" class="admin-btn-ghost">&larr; Back to Your Music</button>
+    </header>
+
+    <section class="admin-panel">
+      <h2>Add a contributor</h2>
+      <p class="admin-hint">Creates them a Stripe Express account so they get paid directly -- you never see or handle their bank details. Assign their split percentage per song from that song's editor.</p>
+
+      <div class="admin-editor-grid" style="grid-template-columns: 1fr 1fr;">
+        <label class="admin-field">
+          Name
+          <input type="text" id="field-contributor-name" placeholder="e.g. Nate Fox" />
+        </label>
+        <label class="admin-field">
+          Email
+          <input type="email" id="field-contributor-email" placeholder="nate@example.com" />
+        </label>
+      </div>
+      <p id="contributors-error" class="admin-error hidden"></p>
+      <button id="btn-add-contributor" class="admin-btn-primary">Add contributor</button>
+
+      <div id="new-contributor-result" class="admin-new-contributor-result hidden">
+        <p class="admin-hint">Send this onboarding link to them -- it expires after a few minutes, so copy it now. You can always generate a fresh one from their row below.</p>
+        <div class="admin-copy-field">
+          <input type="text" id="new-contributor-link" readonly />
+          <button id="btn-copy-new-contributor-link" class="admin-btn-ghost">Copy</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="admin-panel" style="margin-top: 20px;">
+      <h2>Contributors</h2>
+      <div id="contributors-list" class="admin-project-list">
+        <p class="admin-loading">Loading…</p>
+      </div>
+    </section>
+  </div>
+
   <!-- ===================== SALES REPORT ===================== -->
   <div id="view-sales" class="admin-shell hidden">
     <header class="admin-header">
@@ -316,6 +357,7 @@
     <div class="admin-subtabs">
       <button id="btn-sales-subtab-completed" class="admin-subtab-btn is-active">Completed</button>
       <button id="btn-sales-subtab-pending" class="admin-subtab-btn">Pending Carts</button>
+      <button id="btn-sales-subtab-payouts" class="admin-subtab-btn">Payouts</button>
     </div>
 
     <div id="sales-panel-completed">
@@ -348,6 +390,14 @@
         Show dismissed
       </label>
       <div id="pending-table-wrap" class="admin-panel">
+        <p class="admin-loading">Loading…</p>
+      </div>
+    </div>
+
+    <div id="sales-panel-payouts" class="hidden">
+      <p class="admin-hint">Every contributor payout, from the moment a sale happens -- shown as Pending with its payout date, then Paid once the transfer actually goes out. server/payouts.js pays these automatically 2 days after the sale; a failed one can be retried by hand below.</p>
+      <div id="payouts-summary" class="admin-sales-summary"></div>
+      <div id="payouts-table-wrap" class="admin-panel">
         <p class="admin-loading">Loading…</p>
       </div>
     </div>
@@ -402,6 +452,14 @@
             <input type="radio" name="releaseMode" value="auto" />
             Auto — go live the instant the countdown on the Site tab hits zero
           </label>
+        </fieldset>
+
+        <fieldset class="admin-field admin-pricing-choice" style="margin: 0 0 20px;">
+          <legend>Contributors &amp; splits</legend>
+          <p class="admin-hint" style="margin: 0 0 10px;">Kyle keeps 100% of this song unless you give contributors a cut here. Add contributors from the Contributors tab first, then assign each one's percentage below -- paid out automatically 2 days after each sale.</p>
+          <div id="contributor-splits-list"></div>
+          <p id="contributor-splits-empty" class="admin-hint hidden">No contributors yet -- add one from the Contributors tab first.</p>
+          <p id="contributor-splits-total" class="admin-hint">Kyle keeps: 100%</p>
         </fieldset>
 
         <fieldset class="admin-field admin-pricing-choice">

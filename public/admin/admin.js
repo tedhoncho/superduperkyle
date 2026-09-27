@@ -37,6 +37,7 @@ function showView(name) {
   document.getElementById('view-notifications').classList.toggle('hidden', name !== 'notifications');
   document.getElementById('view-site').classList.toggle('hidden', name !== 'site');
   document.getElementById('view-leaderboard').classList.toggle('hidden', name !== 'leaderboard');
+  document.getElementById('view-contributors').classList.toggle('hidden', name !== 'contributors');
 }
 
 // ---------- state ----------
@@ -44,6 +45,11 @@ function showView(name) {
 let currentProjectId = null; // null while creating a brand-new project
 let pendingCoverFile = null; // held until a new project actually gets created
 let pendingTrackFile = null;
+// Tracks the in-flight contributor-splits fetch each time the editor opens,
+// so Save can wait for it -- without this, clicking Save before the splits
+// panel finishes loading would read an empty list and wipe the song's
+// existing splits instead of leaving them alone.
+let splitsFetchPromise = null;
 
 // ---------- boot ----------
 
@@ -334,16 +340,22 @@ document.getElementById('btn-sales-clear').addEventListener('click', () => {
 // hides on the Pending Carts tab rather than exporting something it can't.
 function showSalesSubtab(tab) {
   const isCompleted = tab === 'completed';
+  const isPending = tab === 'pending';
+  const isPayouts = tab === 'payouts';
   document.getElementById('sales-panel-completed').classList.toggle('hidden', !isCompleted);
-  document.getElementById('sales-panel-pending').classList.toggle('hidden', isCompleted);
+  document.getElementById('sales-panel-pending').classList.toggle('hidden', !isPending);
+  document.getElementById('sales-panel-payouts').classList.toggle('hidden', !isPayouts);
   document.getElementById('btn-sales-subtab-completed').classList.toggle('is-active', isCompleted);
-  document.getElementById('btn-sales-subtab-pending').classList.toggle('is-active', !isCompleted);
+  document.getElementById('btn-sales-subtab-pending').classList.toggle('is-active', isPending);
+  document.getElementById('btn-sales-subtab-payouts').classList.toggle('is-active', isPayouts);
   document.getElementById('btn-export-sales').classList.toggle('hidden', !isCompleted);
   if (isCompleted) loadSales();
-  else loadPendingCarts();
+  else if (isPending) loadPendingCarts();
+  else loadPayouts();
 }
 document.getElementById('btn-sales-subtab-completed').addEventListener('click', () => showSalesSubtab('completed'));
 document.getElementById('btn-sales-subtab-pending').addEventListener('click', () => showSalesSubtab('pending'));
+document.getElementById('btn-sales-subtab-payouts').addEventListener('click', () => showSalesSubtab('payouts'));
 
 // SQLite's datetime('now') stores UTC with no timezone suffix (e.g.
 // "2026-09-03 14:22:00") -- appending Z makes JS parse it correctly instead
@@ -483,6 +495,227 @@ document.getElementById('pending-table-wrap').addEventListener('click', async (e
   }
 });
 
+// ---------- contributor payouts ledger ----------
+
+async function loadPayouts() {
+  const wrap = document.getElementById('payouts-table-wrap');
+  wrap.innerHTML = '<p class="admin-loading">Loading…</p>';
+  const { payouts } = await api('GET', '/api/admin/payouts');
+  renderPayouts(payouts);
+}
+
+function payoutStatusPill(status) {
+  if (status === 'paid') return '<span class="admin-status-pill admin-status-ready">Paid</span>';
+  if (status === 'failed') return '<span class="admin-status-pill admin-status-failed">Failed</span>';
+  return '<span class="admin-status-pill admin-status-pending">Pending</span>';
+}
+
+function renderPayouts(payouts) {
+  const totalCents = payouts.reduce((sum, p) => sum + p.amountCents, 0);
+  const pendingCents = payouts.filter((p) => p.status === 'pending').reduce((sum, p) => sum + p.amountCents, 0);
+  document.getElementById('payouts-summary').innerHTML = `
+    <div class="admin-sales-metric"><span>${payouts.length}</span>Payout${payouts.length === 1 ? '' : 's'}</div>
+    <div class="admin-sales-metric"><span>${money(totalCents)}</span>Total owed to contributors</div>
+    <div class="admin-sales-metric"><span>${money(pendingCents)}</span>Still pending</div>
+  `;
+
+  const wrap = document.getElementById('payouts-table-wrap');
+  if (!payouts.length) {
+    wrap.innerHTML = '<p class="admin-empty">No contributor payouts yet -- these only appear once a song with a contributor split makes a sale.</p>';
+    return;
+  }
+
+  wrap.innerHTML = `
+    <table class="admin-sales-table">
+      <thead>
+        <tr><th>Order #</th><th>Song</th><th>Contributor</th><th>Percent</th><th>Amount</th><th>Status</th><th>Payout date</th><th></th></tr>
+      </thead>
+      <tbody>
+        ${payouts
+          .map(
+            (p) => `
+              <tr>
+                <td>${p.orderNumber || '—'}</td>
+                <td>${p.projectTitle}</td>
+                <td>${p.contributorName}</td>
+                <td>${p.percent}%</td>
+                <td>${money(p.amountCents)}</td>
+                <td>${payoutStatusPill(p.status)}${p.status === 'failed' && p.lastError ? `<div class="admin-hint">${p.lastError}</div>` : ''}</td>
+                <td>${formatDateTime(p.status === 'paid' ? p.paidAt : p.eligibleAt)}</td>
+                <td>${p.status === 'failed' ? `<button class="admin-btn-ghost btn-retry-payout" data-payout-id="${p.id}">Retry</button>` : ''}</td>
+              </tr>
+            `
+          )
+          .join('')}
+      </tbody>
+    </table>
+  `;
+}
+
+// Event delegation -- rows get rebuilt on every loadPayouts() call, so this
+// listener is attached once rather than re-bound per render.
+document.getElementById('payouts-table-wrap').addEventListener('click', async (e) => {
+  const btn = e.target.closest('.btn-retry-payout');
+  if (!btn) return;
+  btn.disabled = true;
+  const originalLabel = btn.textContent;
+  btn.textContent = 'Retrying…';
+  try {
+    await api('POST', `/api/admin/payouts/${btn.dataset.payoutId}/retry`);
+    loadPayouts();
+  } catch (err) {
+    alert(err.message || 'Could not retry this payout.');
+    btn.disabled = false;
+    btn.textContent = originalLabel;
+  }
+});
+
+// ---------- contributors ----------
+// Cache shared between the Contributors tab and the project editor's
+// splits panel, so opening a song to edit doesn't need its own separate
+// fetch/render logic for "who exists to assign a split to".
+let allContributors = [];
+
+async function fetchContributors() {
+  const { contributors } = await api('GET', '/api/admin/contributors');
+  allContributors = contributors;
+  return contributors;
+}
+
+function contributorStatusPill(contributor) {
+  if (contributor.payouts_enabled) return '<span class="admin-status-pill admin-status-ready">Ready to be paid</span>';
+  if (contributor.stripe_account_id) return '<span class="admin-status-pill admin-status-pending">Onboarding incomplete</span>';
+  return '<span class="admin-status-pill admin-status-pending">Not started</span>';
+}
+
+async function loadContributors() {
+  const listEl = document.getElementById('contributors-list');
+  listEl.innerHTML = '<p class="admin-loading">Loading…</p>';
+  const contributors = await fetchContributors();
+  renderContributorsList(contributors);
+}
+
+function renderContributorsList(contributors) {
+  const listEl = document.getElementById('contributors-list');
+  if (!contributors.length) {
+    listEl.innerHTML = '<p class="admin-empty">No contributors yet -- add one above.</p>';
+    return;
+  }
+  listEl.innerHTML = '';
+  contributors.forEach((c) => {
+    const row = document.createElement('div');
+    row.className = 'admin-project-row';
+    row.innerHTML = `
+      <div class="admin-project-info">
+        <h3>${c.name}${contributorStatusPill(c)}</h3>
+        <p>${c.email}</p>
+      </div>
+      <div class="admin-project-row-actions">
+        <button class="admin-btn-ghost btn-copy-onboarding">Copy onboarding link</button>
+        <button class="admin-btn-ghost btn-refresh-status">Refresh status</button>
+        <button class="admin-btn-ghost btn-delete-contributor">Delete</button>
+      </div>
+    `;
+    row.querySelector('.btn-copy-onboarding').addEventListener('click', (e) => copyContributorOnboardingLink(c, e.currentTarget));
+    row.querySelector('.btn-refresh-status').addEventListener('click', (e) => refreshContributorStatus(c, e.currentTarget));
+    row.querySelector('.btn-delete-contributor').addEventListener('click', () => deleteContributorRow(c));
+    listEl.appendChild(row);
+  });
+}
+
+// Stripe's onboarding links are short-lived, so this always asks the server
+// for a brand-new one rather than reusing anything cached -- "Copy" always
+// works, even days after the contributor was first added.
+async function copyContributorOnboardingLink(contributor, btn) {
+  const original = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = 'Generating…';
+  try {
+    const { onboardingUrl } = await api('POST', `/api/admin/contributors/${contributor.id}/onboarding-link`);
+    await navigator.clipboard.writeText(onboardingUrl);
+    btn.textContent = 'Copied!';
+  } catch (err) {
+    alert(err.message || 'Could not generate an onboarding link.');
+    btn.textContent = original;
+    btn.disabled = false;
+    return;
+  }
+  setTimeout(() => { btn.textContent = original; btn.disabled = false; }, 2000);
+}
+
+async function refreshContributorStatus(contributor, btn) {
+  const original = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = 'Checking…';
+  try {
+    await api('POST', `/api/admin/contributors/${contributor.id}/refresh-status`);
+    await loadContributors();
+  } catch (err) {
+    alert(err.message || "Could not check this contributor's status.");
+    btn.disabled = false;
+    btn.textContent = original;
+  }
+}
+
+async function deleteContributorRow(contributor) {
+  if (!confirm(`Delete ${contributor.name}? This only works if they have no split on any song.`)) return;
+  try {
+    await api('DELETE', `/api/admin/contributors/${contributor.id}`);
+    loadContributors();
+  } catch (err) {
+    alert(err.message || 'Could not delete this contributor.');
+  }
+}
+
+document.getElementById('btn-view-contributors').addEventListener('click', () => {
+  showView('contributors');
+  document.getElementById('new-contributor-result').classList.add('hidden');
+  loadContributors();
+});
+document.getElementById('btn-contributors-back').addEventListener('click', () => showView('dashboard'));
+
+document.getElementById('btn-add-contributor').addEventListener('click', async () => {
+  const errorEl = document.getElementById('contributors-error');
+  const resultEl = document.getElementById('new-contributor-result');
+  errorEl.classList.add('hidden');
+  resultEl.classList.add('hidden');
+
+  const name = document.getElementById('field-contributor-name').value.trim();
+  const email = document.getElementById('field-contributor-email').value.trim();
+  if (!name || !email) {
+    errorEl.textContent = 'Give the contributor a name and an email.';
+    errorEl.classList.remove('hidden');
+    return;
+  }
+
+  const btn = document.getElementById('btn-add-contributor');
+  btn.disabled = true;
+  btn.textContent = 'Adding…';
+  try {
+    const { onboardingUrl } = await api('POST', '/api/admin/contributors', { name, email });
+    document.getElementById('field-contributor-name').value = '';
+    document.getElementById('field-contributor-email').value = '';
+    document.getElementById('new-contributor-link').value = onboardingUrl;
+    resultEl.classList.remove('hidden');
+    loadContributors();
+  } catch (err) {
+    errorEl.textContent = err.message;
+    errorEl.classList.remove('hidden');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Add contributor';
+  }
+});
+
+document.getElementById('btn-copy-new-contributor-link').addEventListener('click', async () => {
+  const input = document.getElementById('new-contributor-link');
+  const btn = document.getElementById('btn-copy-new-contributor-link');
+  await navigator.clipboard.writeText(input.value);
+  const original = btn.textContent;
+  btn.textContent = 'Copied!';
+  setTimeout(() => { btn.textContent = original; }, 2000);
+});
+
 // ---------- notifications ----------
 
 async function loadNotificationSettings() {
@@ -600,10 +833,75 @@ document.getElementById('btn-save-site').addEventListener('click', async () => {
 
 // ---------- editor: project fields ----------
 
-function openEditor(project) {
+// Splits UI for the editor's "Contributors & splits" fieldset. Kept
+// separate from the Contributors tab's own render function since this one
+// draws an editable percent input per contributor instead of admin actions.
+function renderContributorSplits(contributors, currentSplits) {
+  const listEl = document.getElementById('contributor-splits-list');
+  const emptyEl = document.getElementById('contributor-splits-empty');
+  emptyEl.classList.toggle('hidden', contributors.length > 0);
+
+  if (!contributors.length) {
+    listEl.innerHTML = '';
+    updateContributorSplitsTotal();
+    return;
+  }
+
+  const percentByContributor = {};
+  (currentSplits || []).forEach((s) => { percentByContributor[s.contributorId] = s.percent; });
+
+  listEl.innerHTML = contributors
+    .map(
+      (c) => `
+        <div class="admin-split-row">
+          <span class="admin-split-name">${c.name}${c.payouts_enabled ? '' : ' <span class="admin-hint">(not onboarded yet)</span>'}</span>
+          <input type="number" min="0" max="100" step="1" class="admin-split-percent" data-contributor-id="${c.id}" value="${percentByContributor[c.id] || ''}" placeholder="0" />
+          <span>%</span>
+        </div>
+      `
+    )
+    .join('');
+
+  listEl.querySelectorAll('.admin-split-percent').forEach((el) => el.addEventListener('input', updateContributorSplitsTotal));
+  updateContributorSplitsTotal();
+}
+
+// Reads whatever's currently typed into the splits panel -- this is the
+// single source of truth for what gets saved, not currentSplits from when
+// the editor opened, so a percent typed a second ago is what's submitted.
+function currentSplitsFromForm() {
+  return Array.from(document.querySelectorAll('.admin-split-percent'))
+    .map((el) => ({ contributorId: el.dataset.contributorId, percent: parseInt(el.value, 10) || 0 }))
+    .filter((s) => s.percent > 0);
+}
+
+function contributorSplitsTotal() {
+  return currentSplitsFromForm().reduce((sum, s) => sum + s.percent, 0);
+}
+
+function updateContributorSplitsTotal() {
+  const total = contributorSplitsTotal();
+  const totalEl = document.getElementById('contributor-splits-total');
+  if (total > 100) {
+    totalEl.textContent = `Adds up to ${total}% -- over 100%, won't save until you fix it.`;
+    totalEl.className = 'admin-error';
+  } else {
+    totalEl.textContent = `Kyle keeps: ${100 - total}%`;
+    totalEl.className = 'admin-hint';
+  }
+}
+
+async function openEditor(project) {
   currentProjectId = project ? project.id : null;
   pendingCoverFile = null;
   pendingTrackFile = null;
+
+  document.getElementById('contributor-splits-list').innerHTML = '';
+  document.getElementById('contributor-splits-total').textContent = 'Kyle keeps: 100%';
+  document.getElementById('contributor-splits-total').className = 'admin-hint';
+  splitsFetchPromise = fetchContributors().then((contributors) =>
+    renderContributorSplits(contributors, project ? project.contributors : [])
+  );
 
   document.getElementById('editor-title').textContent = project ? 'Edit' : 'New Song or Album';
   document.getElementById('field-title').value = project ? project.title : '';
@@ -662,6 +960,11 @@ document.getElementById('btn-save-project').addEventListener('click', async () =
   const errorEl = document.getElementById('editor-error');
   errorEl.classList.add('hidden');
 
+  // Guards against saving before the splits panel has finished loading its
+  // contributor list -- otherwise an empty in-progress panel would read as
+  // "no contributors" and wipe out this song's real splits.
+  if (splitsFetchPromise) await splitsFetchPromise;
+
   const body = {
     title: document.getElementById('field-title').value.trim(),
     type: document.getElementById('field-type').value,
@@ -672,10 +975,18 @@ document.getElementById('btn-save-project').addEventListener('click', async () =
     soldOut: document.getElementById('field-sold-out').checked,
     comingSoon: document.getElementById('field-coming-soon').checked,
     releaseMode: document.querySelector('input[name="releaseMode"]:checked').value,
+    contributors: currentSplitsFromForm(),
   };
 
   if (!body.title) {
     errorEl.textContent = 'Give it a title.';
+    errorEl.classList.remove('hidden');
+    return;
+  }
+
+  const splitsTotal = contributorSplitsTotal();
+  if (splitsTotal > 100) {
+    errorEl.textContent = `Contributor splits add up to ${splitsTotal}% -- they can't exceed 100%.`;
     errorEl.classList.remove('hidden');
     return;
   }

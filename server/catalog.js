@@ -44,6 +44,10 @@ function rowToProject(row) {
     comingSoon: !!row.coming_soon,
     releaseMode: row.release_mode || 'manual',
     tracks,
+    // Admin-only: who gets a cut of this song's sales and how much. Never
+    // included in listProjectsPublic()'s hand-picked field list below, so
+    // this never reaches the public storefront or a fan's browser.
+    contributors: db.getProjectContributorSplits(row.id),
   };
 }
 

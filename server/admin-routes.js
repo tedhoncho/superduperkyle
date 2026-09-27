@@ -51,6 +51,24 @@ function projectFieldsFromBody(body) {
   };
 }
 
+// Validates a song editor's submitted contributor list without writing
+// anything -- percentages must sum to <= 100 so Kyle's implicit remainder
+// (100% minus whatever contributors are configured) never goes negative.
+// Silently drops a row with no contributorId or a non-positive percent
+// rather than erroring, since the editor never intentionally sends those.
+function computeCleanContributorSplits(contributors) {
+  const rows = Array.isArray(contributors) ? contributors : [];
+  let total = 0;
+  const clean = [];
+  for (const row of rows) {
+    const percent = parseInt(row.percent, 10);
+    if (!row.contributorId || !Number.isFinite(percent) || percent <= 0) continue;
+    total += percent;
+    clean.push({ contributorId: row.contributorId, percent });
+  }
+  return { clean, total };
+}
+
 // --- Auth ---
 
 router.post('/login', (req, res) => {
@@ -91,6 +109,15 @@ router.post('/projects', (req, res) => {
     return res.status(400).json({ error: 'Set a minimum price per song.' });
   }
 
+  let contributorSplits = null;
+  if (req.body.contributors !== undefined) {
+    const { clean, total } = computeCleanContributorSplits(req.body.contributors);
+    if (total > 100) {
+      return res.status(400).json({ error: `Contributor splits add up to ${total}% -- they can't exceed 100%.` });
+    }
+    contributorSplits = clean;
+  }
+
   const id = slugId(fields.title);
   db.insertProject({
     id,
@@ -107,6 +134,8 @@ router.post('/projects', (req, res) => {
     comingSoon: fields.coming_soon,
     releaseMode: fields.release_mode,
   });
+
+  if (contributorSplits) db.setProjectContributorSplits(id, contributorSplits);
 
   res.json({ project: catalog.getProject(id) });
 });
@@ -154,6 +183,19 @@ router.put('/projects/:id', (req, res) => {
     return res.status(400).json({ error: 'Set a minimum price per song.' });
   }
 
+  // The "Go Live" shortcut button in admin.js submits comingSoon: false
+  // without a contributors key at all -- req.body.contributors stays
+  // undefined there, so this leaves that song's existing splits untouched
+  // rather than silently wiping them the moment a song goes live.
+  let contributorSplits = null;
+  if (req.body.contributors !== undefined) {
+    const { clean, total } = computeCleanContributorSplits(req.body.contributors);
+    if (total > 100) {
+      return res.status(400).json({ error: `Contributor splits add up to ${total}% -- they can't exceed 100%.` });
+    }
+    contributorSplits = clean;
+  }
+
   // Detect the exact moment a Coming Soon project goes live (the admin
   // "Go Live" button in admin.js is just this same generic update with
   // comingSoon: false) so every fan who signed up for a notify-me alert
@@ -161,6 +203,8 @@ router.put('/projects/:id', (req, res) => {
   const wentLive = existing.coming_soon === 1 && fields.coming_soon === 0;
 
   db.updateProject(req.params.id, fields);
+
+  if (contributorSplits) db.setProjectContributorSplits(req.params.id, contributorSplits);
 
   if (wentLive) {
     notifySignupsProjectWentLive(req.params.id).catch((err) => {
@@ -550,6 +594,118 @@ router.post('/leaderboard/:id/stream-top-pick', (req, res) => {
   if (!entry) return res.status(404).json({ error: 'Entry not found.' });
   db.setLeaderboardStreamTopPick(req.params.id, !!req.body.value);
   res.json({ entries: db.listLeaderboardEntriesForAdmin().map(leaderboardEntryToJson) });
+});
+
+// --- Contributors & revenue-split payouts ---
+// A contributor is a person (besides Kyle) who gets a cut of a song's
+// sales, paid out to their own Stripe Connect Express account. Kyle is
+// never entered here -- every song starts at an implicit 100%, and a
+// song with none of these configured behaves exactly as it always has.
+
+router.get('/contributors', (req, res) => {
+  res.json({ contributors: db.listContributors() });
+});
+
+router.post('/contributors', async (req, res) => {
+  const name = (req.body.name || '').trim();
+  const email = (req.body.email || '').trim();
+  if (!name) return res.status(400).json({ error: 'Give the contributor a name.' });
+  if (!email) return res.status(400).json({ error: 'Give the contributor an email.' });
+
+  const id = slugId(name);
+  const baseUrl = process.env.BASE_URL || 'http://localhost:4242';
+
+  try {
+    const account = await stripe.accounts.create({
+      type: 'express',
+      email,
+      capabilities: { transfers: { requested: true } },
+    });
+    db.insertContributor({ id, name, email, stripeAccountId: account.id });
+
+    const link = await stripe.accountLinks.create({
+      account: account.id,
+      refresh_url: `${baseUrl}/api/admin/contributors/${id}/onboarding-link`,
+      return_url: baseUrl,
+      type: 'account_onboarding',
+    });
+
+    res.json({ contributor: db.getContributorRow(id), onboardingUrl: link.url });
+  } catch (err) {
+    res.status(400).json({ error: err.message || 'Could not create a Stripe account for this contributor.' });
+  }
+});
+
+// Stripe's onboarding links expire after a few minutes -- this regenerates
+// one anytime (first send, or one that expired before the contributor used
+// it) without touching anything else about the contributor's row.
+router.post('/contributors/:id/onboarding-link', async (req, res) => {
+  const contributor = db.getContributorRow(req.params.id);
+  if (!contributor) return res.status(404).json({ error: 'Contributor not found.' });
+  if (!contributor.stripe_account_id) {
+    return res.status(400).json({ error: 'This contributor has no Stripe account yet.' });
+  }
+
+  try {
+    const baseUrl = process.env.BASE_URL || 'http://localhost:4242';
+    const link = await stripe.accountLinks.create({
+      account: contributor.stripe_account_id,
+      refresh_url: `${baseUrl}/api/admin/contributors/${contributor.id}/onboarding-link`,
+      return_url: baseUrl,
+      type: 'account_onboarding',
+    });
+    res.json({ onboardingUrl: link.url });
+  } catch (err) {
+    res.status(400).json({ error: err.message || 'Could not generate an onboarding link.' });
+  }
+});
+
+// Stripe doesn't push onboarding completion here (no webhook wired up for
+// Connect -- see the contributors table's comment in db.js for why), so
+// this is a manual "check now" the admin Contributors tab calls on demand.
+router.post('/contributors/:id/refresh-status', async (req, res) => {
+  const contributor = db.getContributorRow(req.params.id);
+  if (!contributor) return res.status(404).json({ error: 'Contributor not found.' });
+  if (!contributor.stripe_account_id) return res.json({ contributor });
+
+  try {
+    const account = await stripe.accounts.retrieve(contributor.stripe_account_id);
+    const updated = db.updateContributorStripeStatus(contributor.id, {
+      chargesEnabled: account.charges_enabled,
+      payoutsEnabled: account.payouts_enabled,
+    });
+    res.json({ contributor: updated });
+  } catch (err) {
+    res.status(400).json({ error: err.message || "Could not check this contributor's Stripe status." });
+  }
+});
+
+router.delete('/contributors/:id', (req, res) => {
+  const contributor = db.getContributorRow(req.params.id);
+  if (!contributor) return res.status(404).json({ error: 'Contributor not found.' });
+  if (db.countProjectsForContributor(contributor.id) > 0) {
+    return res
+      .status(400)
+      .json({ error: 'This contributor still has a split on at least one song -- remove them there first.' });
+  }
+  db.deleteContributor(contributor.id);
+  res.json({ ok: true });
+});
+
+// Every payout ever created, newest first -- visible the moment a sale
+// happens (status: pending, with its payout date), not just once the
+// transfer actually executes. server/payouts.js is what actually moves
+// the money, on its own timer.
+router.get('/payouts', (req, res) => {
+  res.json({ payouts: db.listPayoutsForAdmin() });
+});
+
+// Resets a failed payout back to pending so the next sweep (within 30
+// minutes) picks it up again -- for a transfer that failed because a
+// contributor's Stripe account wasn't ready yet, or a transient error.
+router.post('/payouts/:id/retry', (req, res) => {
+  db.retryPayout(req.params.id);
+  res.json({ payouts: db.listPayoutsForAdmin() });
 });
 
 // --- Sales report ---

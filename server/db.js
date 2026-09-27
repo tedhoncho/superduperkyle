@@ -87,6 +87,65 @@ CREATE TABLE IF NOT EXISTS moon_sync_queue (
   created_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
+-- Contributors: people besides Kyle who get a cut of a song's sales, paid
+-- out to their own Stripe Connect Express account. Kyle is never a row
+-- here -- every song starts at an implicit 100%, a contributor's percent
+-- on project_contributor_splits is carved out of that, and whatever's
+-- left over just stays in the store's main Stripe account untouched, same
+-- as a song with zero contributors always has. stripe_account_id is set
+-- the moment the Express account is created (before onboarding finishes)
+-- so the row exists right away; charges/payouts_enabled reflect Stripe's
+-- own view of onboarding completion, refreshed on demand from the admin
+-- Contributors tab rather than via a webhook -- this store is small
+-- enough that a manual refresh button is simpler than standing up a
+-- Connect webhook endpoint.
+CREATE TABLE IF NOT EXISTS contributors (
+  id TEXT PRIMARY KEY,
+  name TEXT NOT NULL,
+  email TEXT NOT NULL,
+  stripe_account_id TEXT,
+  charges_enabled INTEGER NOT NULL DEFAULT 0,
+  payouts_enabled INTEGER NOT NULL DEFAULT 0,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+-- One row per (song, contributor) split. percent is a whole number,
+-- 1-100; admin-routes.js enforces the sum across one project's rows
+-- staying <= 100 so Kyle's implicit remainder is never negative. Deleting
+-- a contributor or a project cascades here.
+CREATE TABLE IF NOT EXISTS project_contributor_splits (
+  project_id TEXT NOT NULL REFERENCES projects(id) ON DELETE CASCADE,
+  contributor_id TEXT NOT NULL REFERENCES contributors(id) ON DELETE CASCADE,
+  percent INTEGER NOT NULL,
+  PRIMARY KEY (project_id, contributor_id)
+);
+
+-- One row per (order, contributor) payout owed -- written the moment an
+-- order is fulfilled (see fulfillment.js + payouts.js), not when the
+-- money actually moves. percent/amount_cents are snapshotted at sale
+-- time, so a later change to a song's split percentages never rewrites
+-- what past sales already owe. eligible_at is sale time plus a short flat
+-- delay (PAYOUT_DELAY_DAYS in payouts.js); server/payouts.js sweeps this
+-- table on a timer and transfers anything due. A sale on a song with zero
+-- contributors never gets a row here at all.
+CREATE TABLE IF NOT EXISTS payouts (
+  id TEXT PRIMARY KEY,
+  order_id TEXT NOT NULL REFERENCES orders(id),
+  project_id TEXT NOT NULL,
+  contributor_id TEXT NOT NULL REFERENCES contributors(id),
+  percent INTEGER NOT NULL,
+  amount_cents INTEGER NOT NULL,
+  status TEXT NOT NULL DEFAULT 'pending', -- pending -> paid, or failed
+  eligible_at TEXT NOT NULL,
+  paid_at TEXT,
+  stripe_transfer_id TEXT,
+  last_error TEXT,
+  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_payouts_status_eligible ON payouts(status, eligible_at);
+CREATE INDEX IF NOT EXISTS idx_payouts_order ON payouts(order_id);
+
 -- Feature Contest leaderboard: picks Kyle makes live on his Twitch stream
 -- from fan submissions, added by hand after each stream. rank_position is a
 -- manual up/down order (same idea as projects.display_order) kept ready for
@@ -531,6 +590,145 @@ function markMoonSaleRetry(externalId, error) {
   ).run(String(error || 'sync failed').slice(0, 500), externalId);
 }
 
+// --- Contributors & revenue-split payouts ---
+
+function insertContributor({ id, name, email, stripeAccountId }) {
+  db.prepare(
+    `INSERT INTO contributors (id, name, email, stripe_account_id) VALUES (?, ?, ?, ?)`
+  ).run(id, name, email, stripeAccountId || null);
+  return getContributorRow(id);
+}
+
+function listContributors() {
+  return db.prepare(`SELECT * FROM contributors ORDER BY created_at ASC`).all();
+}
+
+function getContributorRow(id) {
+  return db.prepare(`SELECT * FROM contributors WHERE id = ?`).get(id) || null;
+}
+
+// Called after (re)generating an onboarding link for a brand-new Express
+// account -- resets the enabled flags since a new account starts
+// unonboarded even if it's replacing one that was previously ready.
+function updateContributorStripeAccount(id, stripeAccountId) {
+  db.prepare(
+    `UPDATE contributors SET stripe_account_id = ?, charges_enabled = 0, payouts_enabled = 0 WHERE id = ?`
+  ).run(stripeAccountId, id);
+  return getContributorRow(id);
+}
+
+function updateContributorStripeStatus(id, { chargesEnabled, payoutsEnabled }) {
+  db.prepare(
+    `UPDATE contributors SET charges_enabled = ?, payouts_enabled = ? WHERE id = ?`
+  ).run(chargesEnabled ? 1 : 0, payoutsEnabled ? 1 : 0, id);
+  return getContributorRow(id);
+}
+
+// admin-routes.js refuses this at the API layer while the contributor is
+// still used on any song -- deleting here would silently orphan that
+// song's split percentages.
+function deleteContributor(id) {
+  db.prepare(`DELETE FROM contributors WHERE id = ?`).run(id);
+}
+
+function countProjectsForContributor(id) {
+  return db.prepare(`SELECT COUNT(*) AS n FROM project_contributor_splits WHERE contributor_id = ?`).get(id).n;
+}
+
+// Splits for one song, with the contributor's own name/email/onboarding
+// status joined in so the admin editor and catalog.js never need a
+// second lookup per row.
+function getProjectContributorSplits(projectId) {
+  return db
+    .prepare(
+      `SELECT contributors.id AS contributorId, contributors.name AS name,
+              contributors.email AS email, contributors.payouts_enabled AS payoutsEnabled,
+              project_contributor_splits.percent AS percent
+       FROM project_contributor_splits
+       JOIN contributors ON contributors.id = project_contributor_splits.contributor_id
+       WHERE project_contributor_splits.project_id = ?
+       ORDER BY project_contributor_splits.percent DESC`
+    )
+    .all(projectId);
+}
+
+// Replaces a song's entire split list in one transaction -- simpler and
+// safer than diffing adds/removes/percent-changes row by row, and this
+// only ever gets called from the project editor's Save, which always
+// submits the complete current list rather than a partial patch.
+function setProjectContributorSplits(projectId, splits) {
+  const tx = db.transaction((rows) => {
+    db.prepare(`DELETE FROM project_contributor_splits WHERE project_id = ?`).run(projectId);
+    const insert = db.prepare(
+      `INSERT INTO project_contributor_splits (project_id, contributor_id, percent) VALUES (?, ?, ?)`
+    );
+    for (const row of rows) {
+      if (row.percent > 0) insert.run(projectId, row.contributorId, row.percent);
+    }
+  });
+  tx(splits || []);
+}
+
+function insertPayout({ orderId, projectId, contributorId, percent, amountCents, eligibleAt }) {
+  const id = uuidv4();
+  db.prepare(
+    `INSERT INTO payouts (id, order_id, project_id, contributor_id, percent, amount_cents, eligible_at)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`
+  ).run(id, orderId, projectId, contributorId, percent, amountCents, eligibleAt);
+  return id;
+}
+
+function listPayoutsForOrder(orderId) {
+  return db.prepare(`SELECT * FROM payouts WHERE order_id = ?`).all(orderId);
+}
+
+function listDuePayouts(limit = 50) {
+  return db
+    .prepare(
+      `SELECT * FROM payouts WHERE status = 'pending' AND datetime(eligible_at) <= datetime('now')
+       ORDER BY eligible_at ASC LIMIT ?`
+    )
+    .all(limit);
+}
+
+function markPayoutPaid(id, stripeTransferId) {
+  db.prepare(
+    `UPDATE payouts SET status = 'paid', paid_at = datetime('now'), stripe_transfer_id = ?, last_error = NULL WHERE id = ?`
+  ).run(stripeTransferId, id);
+}
+
+function markPayoutFailed(id, error) {
+  db.prepare(`UPDATE payouts SET status = 'failed', last_error = ? WHERE id = ?`).run(
+    String(error || 'transfer failed').slice(0, 500),
+    id
+  );
+}
+
+// Resets a failed payout back to pending so the next sweep retries it --
+// used by the admin Payouts ledger's manual Retry button.
+function retryPayout(id) {
+  db.prepare(`UPDATE payouts SET status = 'pending', last_error = NULL WHERE id = ?`).run(id);
+}
+
+// Admin Payouts ledger -- every payout row with contributor/song/order
+// context joined in, newest first.
+function listPayoutsForAdmin() {
+  return db
+    .prepare(
+      `SELECT payouts.id AS id, payouts.percent AS percent, payouts.amount_cents AS amountCents,
+              payouts.status AS status, payouts.eligible_at AS eligibleAt, payouts.paid_at AS paidAt,
+              payouts.last_error AS lastError, payouts.created_at AS createdAt,
+              orders.order_number AS orderNumber, projects.title AS projectTitle,
+              contributors.name AS contributorName
+       FROM payouts
+       JOIN orders ON orders.id = payouts.order_id
+       JOIN projects ON projects.id = payouts.project_id
+       JOIN contributors ON contributors.id = payouts.contributor_id
+       ORDER BY payouts.created_at DESC`
+    )
+    .all();
+}
+
 function insertDownloadToken({ token, orderId, projectId, trackId, usesRemaining, expiresAt }) {
   db.prepare(
     `INSERT INTO download_tokens (token, order_id, project_id, track_id, uses_remaining, expires_at)
@@ -865,6 +1063,22 @@ module.exports = {
   listPendingMoonSales,
   markMoonSaleSynced,
   markMoonSaleRetry,
+  insertContributor,
+  listContributors,
+  getContributorRow,
+  updateContributorStripeAccount,
+  updateContributorStripeStatus,
+  deleteContributor,
+  countProjectsForContributor,
+  getProjectContributorSplits,
+  setProjectContributorSplits,
+  insertPayout,
+  listPayoutsForOrder,
+  listDuePayouts,
+  markPayoutPaid,
+  markPayoutFailed,
+  retryPayout,
+  listPayoutsForAdmin,
   insertDownloadToken,
   getTokensForOrder,
   getToken,

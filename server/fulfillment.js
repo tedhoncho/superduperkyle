@@ -9,6 +9,7 @@ const db = require('./db');
 const downloads = require('./downloads');
 const { sendDownloadEmail, sendSaleNotification } = require('./email');
 const moonSync = require('./moon-sync');
+const payouts = require('./payouts');
 
 function queueSaleWithoutBlockingCustomer(order, project) {
   try {
@@ -74,6 +75,17 @@ async function fulfillOrder(orderId) {
   }
 
   db.markOrderFulfilled(orderId);
+
+  // A song with no contributors configured never creates anything here --
+  // the full amount just stays in the store's main Stripe account exactly
+  // like it always has. A contributor hiccup (bad data, whatever) can never
+  // fail the customer's purchase, same reasoning as the email/notification
+  // steps above.
+  try {
+    payouts.createPayoutsForOrder(order, project);
+  } catch (err) {
+    console.error('[fulfillment] could not queue contributor payouts:', err.message);
+  }
 
   // The customer already has their download tokens before this runs. If the
   // reporting service is temporarily unavailable, the Stripe webhook is told
