@@ -504,6 +504,22 @@ async function loadPayouts() {
   renderPayouts(payouts);
 }
 
+document.getElementById('btn-run-payout-sweep').addEventListener('click', async () => {
+  const btn = document.getElementById('btn-run-payout-sweep');
+  const original = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = 'Running…';
+  try {
+    const { payouts } = await api('POST', '/api/admin/payouts/run-sweep');
+    renderPayouts(payouts);
+  } catch (err) {
+    alert(err.message || 'Could not run the payout sweep.');
+  } finally {
+    btn.disabled = false;
+    btn.textContent = original;
+  }
+});
+
 function payoutStatusPill(status) {
   if (status === 'paid') return '<span class="admin-status-pill admin-status-ready">Paid</span>';
   if (status === 'failed') return '<span class="admin-status-pill admin-status-failed">Failed</span>';

@@ -12,6 +12,7 @@ const { getDurationSeconds, generatePreviewClip } = require('./media');
 const { slugId } = require('./ids');
 const { sendProjectLiveEmail, sendAbandonedCheckoutEmail } = require('./email');
 const { fulfillOrder } = require('./fulfillment');
+const payouts = require('./payouts');
 
 const stripe = new Stripe(process.env.STRIPE_SECRET_KEY || '');
 
@@ -697,6 +698,16 @@ router.delete('/contributors/:id', (req, res) => {
 // transfer actually executes. server/payouts.js is what actually moves
 // the money, on its own timer.
 router.get('/payouts', (req, res) => {
+  res.json({ payouts: db.listPayoutsForAdmin() });
+});
+
+// Forces an immediate check for due payouts instead of waiting on the
+// 30-minute timer in payouts.js -- mainly for testing (pair with a low
+// PAYOUT_DELAY_DAYS in a dev environment to verify the whole flow in
+// seconds instead of days), but also handy any time Ted doesn't want to
+// wait on the timer for a payout that's already come due.
+router.post('/payouts/run-sweep', async (req, res) => {
+  await payouts.runPayoutSweep();
   res.json({ payouts: db.listPayoutsForAdmin() });
 });
 
