@@ -164,6 +164,11 @@ app.get('/', (req, res) => {
   res.send(renderIndexHtml({ project: null, req }));
 });
 
+// Release press kits are served on their own paths, separate from the store.
+app.get('/mymommalovesme', (req, res) => {
+  res.sendFile(path.join(__dirname, 'press-kits', 'mymommalovesme.html'));
+});
+
 app.use(express.static(path.join(__dirname, '..', 'public')));
 app.use('/art', express.static(path.join(__dirname, '..', 'data', 'art')));
 
